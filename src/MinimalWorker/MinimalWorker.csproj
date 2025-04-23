@@ -18,6 +18,7 @@
       <PackageTags>TopSwagCode, AspNet, AspNetCore, NetCore, Background, Recurring, Tasks</PackageTags>
       <PackageLicenseExpression>MIT</PackageLicenseExpression>
       <Copyright>Copyright © 2025 Joshua Jesper Krægpøth Ryder</Copyright>
+      <PackageReadmeFile>../../README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -25,7 +26,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Include="README.md" Pack="true" PackagePath="" />
+      <None Include="../../README.md" Pack="true" PackagePath="" />
     </ItemGroup>
 
 </Project>

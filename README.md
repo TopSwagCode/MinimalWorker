@@ -1,6 +1,6 @@
 # MinimalWorker
 
-![Worker](/assets/worker.png)
+![Worker](https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/master/assets/worker.png)
 
 **MinimalWorker** is a lightweight .NET library that simplifies background worker registration in ASP.NET Core and .NET applications using the `IHost` interface. It offers two simple extension methods to map background tasks that run continuously or periodically, with support for dependency injection and cancellation tokens.
 
