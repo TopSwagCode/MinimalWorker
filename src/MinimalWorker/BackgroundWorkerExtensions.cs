@@ -1,4 +1,6 @@
-﻿namespace MinimalWorker;
+﻿using System.Reflection;
+
+namespace MinimalWorker;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -8,14 +10,15 @@ public static class BackgroundWorkerExtensions
     public static void MapBackgroundWorker(this IHost host, Delegate action)
     {
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-
+        var parameters = action.Method.GetParameters();
+        
         lifetime.ApplicationStarted.Register(() =>
         {
             var token = lifetime.ApplicationStopping;
             _ = Task.Run(async () =>
             {
                 using var scope = host.Services.CreateScope();
-                var args = GetRequiredArguments(scope.ServiceProvider, action, token);
+                var args = GetRequiredArguments(scope.ServiceProvider, parameters, token);
 
                 while (!token.IsCancellationRequested)
                 {
@@ -34,7 +37,8 @@ public static class BackgroundWorkerExtensions
     public static void MapPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-
+        var parameters = action.Method.GetParameters();
+        
         lifetime.ApplicationStarted.Register(() =>
         {
             var token = lifetime.ApplicationStopping;
@@ -44,7 +48,7 @@ public static class BackgroundWorkerExtensions
                 while (await timer.WaitForNextTickAsync(token))
                 {
                     using var scope = host.Services.CreateScope();
-                    var args = GetRequiredArguments(scope.ServiceProvider, action, token);
+                    var args = GetRequiredArguments(scope.ServiceProvider, parameters, token);
                     
                     var result = action.DynamicInvoke(args);
 
@@ -57,9 +61,8 @@ public static class BackgroundWorkerExtensions
         });
     }
 
-    private static object[] GetRequiredArguments(IServiceProvider serviceProvider, Delegate action, CancellationToken token)
+    private static object[] GetRequiredArguments(IServiceProvider serviceProvider, ParameterInfo[] parameters, CancellationToken token)
     {
-        var parameters = action.Method.GetParameters();
         var args = new object[parameters.Length];
 
         for (int i = 0; i < parameters.Length; i++)
