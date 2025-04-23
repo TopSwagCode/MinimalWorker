@@ -1,0 +1,6 @@
+@MinimalWorker.Api.Sample_HostAddress = http://localhost:5198
+
+GET {{MinimalWorker.Api.Sample_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
