@@ -22,4 +22,10 @@ app.MapPeriodicBackgroundWorker(TimeSpan.FromSeconds(1), async (CancellationToke
     await channelService.SendNotificationAsync("Hello from Periodic Background worker!");
 });
 
+app.MapCronBackgroundWorker("* * * * *", async (CancellationToken ct, ChannelService channelService) =>
+{
+    Console.WriteLine("Cron Background worker running at {0}", DateTime.Now);
+    await channelService.SendNotificationAsync("Hello from Cron Background worker!");
+});
+
 app.Run();

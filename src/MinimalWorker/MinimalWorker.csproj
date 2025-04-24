@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.4" />
+      <PackageReference Include="NCrontab" Version="3.3.3" />
     </ItemGroup>
 
     <ItemGroup>
