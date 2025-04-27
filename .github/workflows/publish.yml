@@ -23,7 +23,9 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
     - name: Restore dependencies
-      run: dotnet restore src/MinimalWorker
+      run: |
+        dotnet restore src/MinimalWorker
+        dotnet restore test/MinimalWorker.Test
 
     - name: Build
       run: dotnet build src/MinimalWorker --configuration Release --no-restore
