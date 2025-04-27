@@ -1,14 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker", "src\MinimalWorker\MinimalWorker.csproj", "{72C19DDE-3A9D-48A0-B127-9D45619EEE14}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker", "src/MinimalWorker/MinimalWorker.csproj", "{72C19DDE-3A9D-48A0-B127-9D45619EEE14}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Console.Sample", "samples\MinimalWorker.Console.Sample\MinimalWorker.Console.Sample.csproj", "{4371890F-A33F-40F1-ACAA-9C253235F44C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Console.Sample", "samples/MinimalWorker.Console.Sample/MinimalWorker.Console.Sample.csproj", "{4371890F-A33F-40F1-ACAA-9C253235F44C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Api.Sample", "samples\MinimalWorker.Api.Sample\MinimalWorker.Api.Sample.csproj", "{BB4252A3-E441-450B-AAE4-131FAEF08278}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Api.Sample", "samples/MinimalWorker.Api.Sample/MinimalWorker.Api.Sample.csproj", "{BB4252A3-E441-450B-AAE4-131FAEF08278}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Shared.Sample", "samples\MinimalWorker.Shared.Sample\MinimalWorker.Shared.Sample.csproj", "{052ED16E-5E46-43F8-BA73-2328D5A86580}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Shared.Sample", "samples/MinimalWorker.Shared.Sample/MinimalWorker.Shared.Sample.csproj", "{052ED16E-5E46-43F8-BA73-2328D5A86580}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Test", "test\MinimalWorker.Test\MinimalWorker.Test.csproj", "{07EB96F3-D24E-43CB-978C-E091DB31F6E1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Test", "test/MinimalWorker.Test/MinimalWorker.Test.csproj", "{07EB96F3-D24E-43CB-978C-E091DB31F6E1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
