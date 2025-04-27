@@ -64,7 +64,7 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(103); // 3 as buffer
+        await Task.Delay(95);
         await host.StopAsync();
 
         // Assert
