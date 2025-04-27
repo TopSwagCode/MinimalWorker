@@ -1,6 +1,12 @@
 # MinimalWorker
 
+[![Publish NuGet Package](https://github.com/TopSwagCode/MinimalWorker/actions/workflows/publish.yml/badge.svg)](https://github.com/TopSwagCode/MinimalWorker/actions/workflows/publish.yml) 
+![NuGet Downloads](https://img.shields.io/nuget/dt/MinimalWorker)
+![NuGet Version](https://img.shields.io/nuget/v/MinimalWorker)
+
+
 ![Worker](https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/master/assets/worker.png)
+
 
 **MinimalWorker** is a lightweight .NET library that simplifies background worker registration in ASP.NET Core and .NET applications using the `IHost` interface. It offers two simple extension methods to map background tasks that run continuously or periodically, with support for dependency injection and cancellation tokens.
 
