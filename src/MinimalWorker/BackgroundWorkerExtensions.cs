@@ -8,6 +8,31 @@ using Microsoft.Extensions.Hosting;
 
 public static class BackgroundWorkerExtensions
 {
+    /// <summary>
+    /// Maps a background worker that continuously executes the specified delegate while the application is running.
+    /// </summary>
+    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
+    /// <param name="action">
+    /// A delegate representing the work to be executed. 
+    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// </param>
+    /// <remarks>
+    /// The worker will start when the application starts and run in a continuous loop until shutdown.
+    /// Dependency injection is supported for method parameters.
+    /// </remarks>
+    /// <example>
+    /// Example usage:
+    /// <code>
+    /// host.MapBackgroundWorker(async (CancellationToken token) =>
+    /// {
+    ///     while (!token.IsCancellationRequested)
+    ///     {
+    ///         Console.WriteLine("Running background task...");
+    ///         await Task.Delay(1000, token);
+    ///     }
+    /// });
+    /// </code>
+    /// </example>
     public static void MapBackgroundWorker(this IHost host, Delegate action)
     {
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
@@ -35,6 +60,29 @@ public static class BackgroundWorkerExtensions
         });
     }
     
+    /// <summary>
+    /// Maps a periodic background worker that executes the specified delegate at a fixed time interval.
+    /// </summary>
+    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
+    /// <param name="timespan">The <see cref="TimeSpan"/> interval between executions.</param>
+    /// <param name="action">
+    /// A delegate representing the work to be executed periodically.
+    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// </param>
+    /// <remarks>
+    /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
+    /// Dependency injection is supported for method parameters.
+    /// </remarks>
+    /// <example>
+    /// Example usage:
+    /// <code>
+    /// host.MapPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (CancellationToken token) =>
+    /// {
+    ///     Console.WriteLine("Running periodic task every 5 minutes...");
+    ///     await Task.CompletedTask;
+    /// });
+    /// </code>
+    /// </example>
     public static void MapPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
@@ -62,6 +110,32 @@ public static class BackgroundWorkerExtensions
         });
     }
 
+    /// <summary>
+    /// Maps a cron-scheduled background worker that executes the specified delegate according to a cron expression.
+    /// </summary>
+    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
+    /// <param name="cronExpression">
+    /// A cron expression string defining the schedule. 
+    /// Uses the standard cron format (minute, hour, day of month, month, day of week).
+    /// </param>
+    /// <param name="action">
+    /// A delegate representing the work to be executed on the scheduled times.
+    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// </param>
+    /// <remarks>
+    /// The worker schedules the execution based on the next occurrence derived from the cron expression.
+    /// Dependency injection is supported for method parameters.
+    /// </remarks>
+    /// <example>
+    /// Example usage:
+    /// <code>
+    /// host.MapCronBackgroundWorker("*/15 * * * *", async (CancellationToken token) =>
+    /// {
+    ///     Console.WriteLine("Running cron task every 15 minutes...");
+    ///     await Task.CompletedTask;
+    /// });
+    /// </code>
+    /// </example>
     public static void MapCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
     {
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();

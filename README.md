@@ -69,5 +69,5 @@ All methods automatically resolve services from the DI container and inject the 
 
 - `MapBackgroundWorker` runs a background task once the application starts, and continues until shutdown.
 - `MapPeriodicBackgroundWorker` runs your task repeatedly at a fixed interval using PeriodicTimer.
-- `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression, using NCrontab for timing.
+- `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.

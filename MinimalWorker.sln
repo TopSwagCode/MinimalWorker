@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Api.Sample", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Shared.Sample", "samples\MinimalWorker.Shared.Sample\MinimalWorker.Shared.Sample.csproj", "{052ED16E-5E46-43F8-BA73-2328D5A86580}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Test", "test\MinimalWorker.Test\MinimalWorker.Test.csproj", "{07EB96F3-D24E-43CB-978C-E091DB31F6E1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{052ED16E-5E46-43F8-BA73-2328D5A86580}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{052ED16E-5E46-43F8-BA73-2328D5A86580}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{052ED16E-5E46-43F8-BA73-2328D5A86580}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
