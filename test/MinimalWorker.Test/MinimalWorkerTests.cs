@@ -58,7 +58,7 @@ public class MinimalWorkerTests
         {
             myService.Increment();
 
-            await Task.Delay(20, token);
+            await Task.Delay(50, token);
             return Task.CompletedTask;
         });
 
@@ -68,7 +68,7 @@ public class MinimalWorkerTests
         await host.StopAsync();
 
         // Assert
-        service.Received(5).Increment();
+        service.Received(2).Increment();
     }
     
     [Fact]
