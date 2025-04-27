@@ -23,10 +23,13 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
     - name: Restore dependencies
-      run: dotnet restore src/MinimalWorker
+      run: dotnet restore MinimalWorker.sln
 
     - name: Build
-      run: dotnet build src/MinimalWorker --configuration Release --no-restore
+      run: dotnet build MinimalWorker.sln --configuration Release --no-restore
+
+    - name: Test NuGet package
+      run: dotnet test MinimalWorker.sln --configuration Release --no-build
 
     - name: Pack NuGet package
       run: dotnet pack src/MinimalWorker --configuration Release --no-build --output ./nupkgs -p:Version=${{ env.VERSION }}
