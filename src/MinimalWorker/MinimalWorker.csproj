@@ -19,6 +19,7 @@
       <PackageLicenseExpression>MIT</PackageLicenseExpression>
       <Copyright>Copyright © 2025 Joshua Jesper Krægpøth Ryder</Copyright>
       <PackageReadmeFile>README.md</PackageReadmeFile>
+      <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,6 +29,7 @@
 
     <ItemGroup>
       <None Include="../../README.md" Pack="true" PackagePath="\" />
+      <None Include="assets/icon.png" Pack="true" PackagePath="\" />
     </ItemGroup>
 
 </Project>
