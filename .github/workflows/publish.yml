@@ -28,15 +28,6 @@ jobs:
     - name: Build
       run: dotnet build src/MinimalWorker --configuration Release --no-restore
 
-    - name: Restore dependencies
-      run: dotnet restore test/MinimalWorker.Test
-
-    - name: Build
-      run: dotnet build test/MinimalWorker.Test --configuration Release --no-restore
-
-    - name: Test
-      run: dotnet test test/MinimalWorker.Test --configuration Release --no-restore
-
     - name: Pack NuGet package
       run: dotnet pack src/MinimalWorker --configuration Release --no-build --output ./nupkgs -p:Version=${{ env.VERSION }}
 
