@@ -57,13 +57,13 @@ app.MapPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (MyService servic
 ### Command run on notice (Cron) Background Worker
 
 ```csharp
-app.MapCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, ChannelService channelService) =>
+app.MapCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService service) =>
 {
     await service.SendDailyProgressReport();
 });
 ```
 
-Both methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
+All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
 ## 🔧 How It Works
 
