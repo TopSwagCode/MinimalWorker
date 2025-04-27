@@ -31,7 +31,7 @@ jobs:
       run: dotnet build src/MinimalWorker --configuration Release --no-restore
 
     - name: Run tests
-      run: dotnet test src/MinimalWorker.Test --configuration Release --no-build --verbosity normal
+      run: dotnet test test/MinimalWorker.Test --configuration Release --verbosity normal
 
     - name: Pack NuGet package
       run: dotnet pack src/MinimalWorker --configuration Release --no-build --output ./nupkgs -p:Version=${{ env.VERSION }}
