@@ -24,9 +24,6 @@ jobs:
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-    - name: Move into project folder
-      run: cd MinimalWorker
-
     - name: Restore dependencies
       run: dotnet restore MinimalWorker.sln
 
