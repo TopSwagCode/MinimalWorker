@@ -8,6 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\MinimalWorker.Experiment\MinimalWorker.Experiment.csproj"  OutputItemType="Analyzer"
+                        ReferenceOutputAssembly="false" />
       <ProjectReference Include="..\MinimalWorker.Shared.Sample\MinimalWorker.Shared.Sample.csproj" />
     </ItemGroup>
 

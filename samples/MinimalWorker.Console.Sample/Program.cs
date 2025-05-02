@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using HelloWorldGenerated;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MinimalWorker;
 using MinimalWorker.Shared.Sample;
+
+HelloWorld.SayHello();
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<ChannelService>();

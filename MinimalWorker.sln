@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Shared.Sample
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Test", "test\MinimalWorker.Test\MinimalWorker.Test.csproj", "{07EB96F3-D24E-43CB-978C-E091DB31F6E1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalWorker.Experiment", "MinimalWorker.Experiment\MinimalWorker.Experiment.csproj", "{9B51831C-F692-4A17-9A83-A576C0CFEB5C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07EB96F3-D24E-43CB-978C-E091DB31F6E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B51831C-F692-4A17-9A83-A576C0CFEB5C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B51831C-F692-4A17-9A83-A576C0CFEB5C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B51831C-F692-4A17-9A83-A576C0CFEB5C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B51831C-F692-4A17-9A83-A576C0CFEB5C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
