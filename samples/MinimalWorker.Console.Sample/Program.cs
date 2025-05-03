@@ -2,7 +2,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MinimalWorker.Shared.Sample;
-using PeriodicWorkerGenerated;
+//using PeriodicWorkerGenerated;
+//using WorkerGenerated;
 
 HelloWorld.SayHello();
 
@@ -13,14 +14,22 @@ builder.Services.AddSingleton<ChannelService>();
 
 var app = builder.Build();
 
-app.MapPeriodicBackgroundWorker(
-        TimeSpan.FromSeconds(10),
-        async ct =>
-        {
-            Console.WriteLine("Tick at " + DateTime.Now);
-            await Task.CompletedTask;
-        })
-    .Run();
+// app.MapPeriodicBackgroundWorker(
+//         TimeSpan.FromSeconds(10),
+//         async ct =>
+//         {
+//             Console.WriteLine("Tick at " + DateTime.Now);
+//             await Task.CompletedTask;
+//         })
+//     .Run();
+
+//app.MapBackgroundWorker(TimeSpan.FromSeconds(10), (tr,ct) => {  });
+
+app.MapBackgroundWorker(TimeSpan.FromSeconds(10), async (CancellationToken token) =>
+{
+    Console.WriteLine("Helloooo");
+    await Task.Delay(1);
+});
 
 // app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
 // {
