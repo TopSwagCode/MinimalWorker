@@ -38,14 +38,6 @@ app.MapGet("/weatherforecast", async (ChannelService channelService) =>
     })
     .WithName("GetWeatherForecast");
 
-app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
-{
-    await foreach (var str in channelService.ReadAllNotificationsAsync(ct))
-    {
-        Console.WriteLine("Background worker running at {0}", DateTime.Now);
-    }
-});
-
 app.Run();
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)

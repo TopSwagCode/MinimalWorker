@@ -9,7 +9,6 @@ namespace MinimalWorker.Experiment
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            // Registers a callback that runs once, before any syntax is even analyzed.
             context.RegisterPostInitializationOutput(ctx =>
             {
                 const string source = @"
