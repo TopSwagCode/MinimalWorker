@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+//sb.AppendLine("namespace Microsoft.Extensions.Hosting");
 
 namespace MinimalWorker.Experiment
 {
@@ -13,40 +14,32 @@ namespace MinimalWorker.Experiment
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            // 1) Find all invocations named MapBackgroundWorker(...)
+            // 1) Find invocations of MapBackgroundWorker
             var specs = context.SyntaxProvider
                 .CreateSyntaxProvider(
-                    predicate: (node, ct) =>
-                    {
-                        if (node is InvocationExpressionSyntax inv &&
-                            inv.Expression is MemberAccessExpressionSyntax member &&
-                            member.Name.Identifier.Text == "MapBackgroundWorker")
-                        {
-                            return true;
-                        }
-                        return false;
-                    },
-                    transform: (ctx, ct) =>
+                    (node, ct) =>
+                        node is InvocationExpressionSyntax inv &&
+                        inv.Expression is MemberAccessExpressionSyntax member &&
+                        member.Name.Identifier.Text == "MapBackgroundWorker",
+                    (ctx, ct) =>
                     {
                         var inv = (InvocationExpressionSyntax)ctx.Node;
-
-                        // Expect exactly two args: timespan + lambda
                         if (inv.ArgumentList.Arguments.Count != 2)
                             return null;
 
-                        // Second arg must be a lambda: (A a, B b, ..., CancellationToken ct) => ...
+                        // Expect a parenthesized lambda as 2nd arg
                         if (!(inv.ArgumentList.Arguments[1].Expression is ParenthesizedLambdaExpressionSyntax lambda))
                             return null;
 
                         var parameters = lambda.ParameterList.Parameters;
-                        // Need at least the cancellation token parameter
                         if (parameters.Count < 1)
                             return null;
 
-                        // Last param must be CancellationToken
+                        // Last parameter must be CancellationToken
                         var lastParam = parameters[parameters.Count - 1];
-                        if (lastParam.Type == null ||
-                            !lastParam.Type.ToString().EndsWith("CancellationToken"))
+                        var lastTypeInfo = ctx.SemanticModel.GetTypeInfo(lastParam.Type);
+                        if (lastTypeInfo.Type == null ||
+                            lastTypeInfo.Type.ToDisplayString() != "System.Threading.CancellationToken")
                         {
                             return null;
                         }
@@ -56,11 +49,16 @@ namespace MinimalWorker.Experiment
                         for (int i = 0; i < parameters.Count - 1; i++)
                         {
                             var p = parameters[i];
-                            if (p.Type != null)
-                                services.Add((p.Type.ToString(), p.Identifier.Text));
+                            var typeInfo = ctx.SemanticModel.GetTypeInfo(p.Type);
+                            if (typeInfo.Type is INamedTypeSymbol namedType)
+                            {
+                                var fullName = namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                                    .Replace("global::", "");
+                                services.Add((fullName, p.Identifier.Text));
+                            }
                         }
 
-                        // Create a unique hint name
+                        // Create a unique hint
                         var hint = services.Count > 0
                             ? string.Join("_", services.Select(s => s.TypeName.Replace('.', '_')))
                             : "NoServices";
@@ -70,7 +68,7 @@ namespace MinimalWorker.Experiment
                 .Where(x => x != null)
                 .Collect();
 
-            // 2) Generate one extension per unique service-set
+            // 2) Generate extensions
             context.RegisterSourceOutput(specs, (spc, allSpecs) =>
             {
                 foreach (var grouping in allSpecs.GroupBy(x => x.Hint))
@@ -86,13 +84,12 @@ namespace MinimalWorker.Experiment
                     sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
                     sb.AppendLine("using Microsoft.Extensions.Hosting;");
                     sb.AppendLine();
-                    //sb.AppendLine("namespace WorkerGenerated");
-                    sb.AppendLine("namespace Microsoft.Extensions.Hosting");
+                    sb.AppendLine("namespace Microsoft.Extensions.Hosting"); // Should we use MinimalWorker as before????
                     sb.AppendLine("{");
                     sb.AppendLine("    public static class HostExtensions");
                     sb.AppendLine("    {");
 
-                    // Signature
+                    // Method signature
                     sb.Append("        public static IHost MapBackgroundWorker(");
                     sb.Append("this IHost host, TimeSpan timespan, ");
                     if (services.Count == 0)
@@ -138,10 +135,10 @@ namespace MinimalWorker.Experiment
                     sb.AppendLine("    }");
                     sb.AppendLine("}");
 
-                    spc.AddSource($"HostExtensions_{hint}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
+                    spc.AddSource($"HostExtensions_{hint}.g.cs",
+                                  SourceText.From(sb.ToString(), Encoding.UTF8));
                 }
             });
         }
     }
-
 }

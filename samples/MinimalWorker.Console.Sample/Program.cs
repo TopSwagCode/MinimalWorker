@@ -11,6 +11,7 @@ HelloWorld.SayHello();
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<ChannelService>();
+builder.Services.AddSingleton<HelloWorldDependency>();
 
 var app = builder.Build();
 
@@ -25,9 +26,9 @@ var app = builder.Build();
 
 //app.MapBackgroundWorker(TimeSpan.FromSeconds(10), (tr,ct) => {  });
 
-app.MapBackgroundWorker(TimeSpan.FromSeconds(10), async (CancellationToken token) =>
+app.MapBackgroundWorker(TimeSpan.FromSeconds(1), async (HelloWorldDependency helloWorldDependency, CancellationToken token) =>
 {
-    Console.WriteLine("Helloooo");
+    Console.WriteLine(helloWorldDependency.HelloWorld);
     await Task.Delay(1);
 });
 

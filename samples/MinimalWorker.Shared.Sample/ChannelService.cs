@@ -16,3 +16,8 @@ public class ChannelService
         return _stringChannel.Reader.ReadAllAsync(stoppingToken);
     }
 }
+
+public class HelloWorldDependency
+{
+    public string HelloWorld = "Hello World!";
+}
