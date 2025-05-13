@@ -4,7 +4,7 @@ using NSubstitute;
 
 namespace MinimalWorker.Test;
 
-public class MinimalWorkerTests
+public class MinimalWorkerTests // Test
 {
     [Fact]
     public async Task BackgroundWorker_Should_Respect_CancellationToken()
