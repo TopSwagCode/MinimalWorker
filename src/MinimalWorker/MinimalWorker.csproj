@@ -31,11 +31,19 @@
         <PackageReference Include="NCrontab" Version="3.3.3" />
     </ItemGroup>
     
-    <!-- Generator is packaged with the library but not applied to itself -->
+    <!-- Build the generator during build, but don't include as package reference -->
     <ItemGroup>
         <ProjectReference Include="..\MinimalWorker.Generators\MinimalWorker.Generators.csproj" 
-                          Pack="true"
-                          PrivateAssets="none" />
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- Package the generator DLL as an analyzer -->
+    <ItemGroup>
+        <None Include="..\MinimalWorker.Generators\bin\$(Configuration)\netstandard2.0\MinimalWorker.Generators.dll" 
+              Pack="true" 
+              PackagePath="analyzers/dotnet/cs" 
+              Visible="false" />
     </ItemGroup>
 
     <ItemGroup>
