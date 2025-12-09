@@ -38,7 +38,7 @@ app.MapGet("/weatherforecast", async (ChannelService channelService) =>
     })
     .WithName("GetWeatherForecast");
 
-app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
+app.RunBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
 {
     await foreach (var str in channelService.ReadAllNotificationsAsync(ct))
     {

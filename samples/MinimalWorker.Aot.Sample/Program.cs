@@ -11,20 +11,20 @@ builder.Services.AddScoped<IConsoleOutputService, ConsoleOutputService>();
 var app = builder.Build();
 
 // Simple continuous worker
-app.MapBackgroundWorker(async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
+app.RunBackgroundWorker(async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
 {
     await consoleOutputService.WriteLineAsync($"[{DateTime.Now:HH:mm:ss}] Continuous worker executing...");
     await Task.Delay(1000, ct);
 });
 
 // Periodic worker
-app.MapPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
+app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
 {
     await consoleOutputService.WriteLineAsync($"[{DateTime.Now:HH:mm:ss}] Periodic worker executing (every 2 seconds)");
     return Task.CompletedTask;
 });
 
-app.MapCronBackgroundWorker("* * * * *", async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
+app.RunCronBackgroundWorker("* * * * *", async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
 {
     await consoleOutputService.WriteLineAsync($"[{DateTime.Now:HH:mm:ss}] Cron worker executing (every 1 minute)");
     return Task.CompletedTask;

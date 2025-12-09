@@ -41,7 +41,7 @@ Install-Package MinimalWorker
 ### Continuous Background Worker
 
 ```csharp
-app.MapBackgroundWorker(async (MyService service, CancellationToken token) =>
+app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 {
     while (!token.IsCancellationRequested)
     {
@@ -54,7 +54,7 @@ app.MapBackgroundWorker(async (MyService service, CancellationToken token) =>
 ### Periodic Background Worker
 
 ```csharp
-app.MapPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (MyService service, CancellationToken token) =>
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (MyService service, CancellationToken token) =>
 {
     await service.CleanupAsync();
 });
@@ -63,7 +63,7 @@ app.MapPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (MyService servic
 ### Command run on notice (Cron) Background Worker
 
 ```csharp
-app.MapCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService service) =>
+app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService service) =>
 {
     await service.SendDailyProgressReport();
 });
@@ -75,9 +75,9 @@ Workers are automatically initialized and started when the application starts - 
 
 ## 🔧 How It Works
 
-- `MapBackgroundWorker` runs a background task once the application starts, and continues until shutdown.
-- `MapPeriodicBackgroundWorker` runs your task repeatedly at a fixed interval using PeriodicTimer.
-- `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
+- `RunBackgroundWorker` runs a background task once the application starts, and continues until shutdown.
+- `RunPeriodicBackgroundWorker` runs your task repeatedly at a fixed interval using PeriodicTimer.
+- `RunCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
 - Workers are initialized using **source generators** for AOT compatibility - no reflection at runtime!
 - Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.

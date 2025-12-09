@@ -8,7 +8,7 @@ builder.Services.AddSingleton<ChannelService>();
 
 var app = builder.Build();
 
-app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
+app.RunBackgroundWorker(async (CancellationToken ct, ChannelService channelService) =>
 {
     await foreach (var str in channelService.ReadAllNotificationsAsync(ct))
     {
@@ -16,13 +16,13 @@ app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelServi
     }
 });
 
-app.MapPeriodicBackgroundWorker(TimeSpan.FromSeconds(1), async (CancellationToken ct, ChannelService channelService) =>
+app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(1), async (CancellationToken ct, ChannelService channelService) =>
 {
     Console.WriteLine("Periodic Background worker running at {0}", DateTime.Now);
     await channelService.SendNotificationAsync("Hello from Periodic Background worker!");
 });
 
-app.MapCronBackgroundWorker("* * * * *", async (CancellationToken ct, ChannelService channelService) =>
+app.RunCronBackgroundWorker("* * * * *", async (CancellationToken ct, ChannelService channelService) =>
 {
     Console.WriteLine("Cron Background worker running at {0}", DateTime.Now);
     await channelService.SendNotificationAsync("Hello from Cron Background worker!");

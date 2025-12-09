@@ -16,7 +16,7 @@ public class MinimalWorkerTests
         using var host = Host.CreateDefaultBuilder()
             .Build();
 
-        host.MapBackgroundWorker(async (CancellationToken token) =>
+        host.RunBackgroundWorker(async (CancellationToken token) =>
         {
             try
             {
@@ -56,7 +56,7 @@ public class MinimalWorkerTests
             })
             .Build();
 
-        host.MapBackgroundWorker(async (ICounterService myService, CancellationToken token) =>
+        host.RunBackgroundWorker(async (ICounterService myService, CancellationToken token) =>
         {
             myService.Increment();
             await Task.Delay(50, token);
@@ -86,7 +86,7 @@ public class MinimalWorkerTests
             })
             .Build();
 
-        host.MapPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(50), (ICounterService svc, CancellationToken token) =>
+        host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(50), (ICounterService svc, CancellationToken token) =>
         {
             svc.Increment();
             return Task.CompletedTask;
@@ -115,7 +115,7 @@ public class MinimalWorkerTests
             })
             .Build();
         
-        host.MapCronBackgroundWorker("* * * * *", (ICounterService svc, CancellationToken token) =>
+        host.RunCronBackgroundWorker("* * * * *", (ICounterService svc, CancellationToken token) =>
         {
             svc.Increment();
             return Task.CompletedTask;

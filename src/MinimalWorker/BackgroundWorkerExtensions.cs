@@ -73,7 +73,7 @@ public static class BackgroundWorkerExtensions
     /// <example>
     /// Example usage:
     /// <code>
-    /// host.MapBackgroundWorker(async (CancellationToken token) =>
+    /// host.RunBackgroundWorker(async (CancellationToken token) =>
     /// {
     ///     while (!token.IsCancellationRequested)
     /// {
@@ -83,7 +83,7 @@ public static class BackgroundWorkerExtensions
     /// });
     /// </code>
     /// </example>
-    public static void MapBackgroundWorker(this IHost host, Delegate action)
+    public static void RunBackgroundWorker(this IHost host, Delegate action)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
@@ -116,14 +116,14 @@ public static class BackgroundWorkerExtensions
     /// <example>
     /// Example usage:
     /// <code>
-    /// host.MapPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (CancellationToken token) =>
+    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (CancellationToken token) =>
     /// {
     ///     Console.WriteLine("Running periodic task every 5 minutes...");
     ///     await Task.CompletedTask;
     /// });
     /// </code>
     /// </example>
-    public static void MapPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
+    public static void RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
@@ -160,14 +160,14 @@ public static class BackgroundWorkerExtensions
     /// <example>
     /// Example usage:
     /// <code>
-    /// host.MapCronBackgroundWorker("*/15 * * * *", async (CancellationToken token) =>
+    /// host.RunCronBackgroundWorker("*/15 * * * *", async (CancellationToken token) =>
     /// {
     ///     Console.WriteLine("Running cron task every 15 minutes...");
     ///     await Task.CompletedTask;
     /// });
     /// </code>
     /// </example>
-    public static void MapCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
+    public static void RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
