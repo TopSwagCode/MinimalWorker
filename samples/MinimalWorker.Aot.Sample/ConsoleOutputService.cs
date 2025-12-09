@@ -7,7 +7,7 @@ public interface IConsoleOutputService
 
 public class ConsoleOutputService : IConsoleOutputService
 {
-    private Guid _guid;
+    private readonly Guid _guid;
     public ConsoleOutputService()
     {
         _guid = Guid.NewGuid();
