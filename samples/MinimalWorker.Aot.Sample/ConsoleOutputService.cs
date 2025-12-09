@@ -15,6 +15,6 @@ public class ConsoleOutputService : IConsoleOutputService
     public async Task WriteLineAsync(string message)
     {
         await Task.Delay(1);
-        System.Console.WriteLine(message + _guid );
+        System.Console.WriteLine(message + " - Scoped Guid: " + _guid );
     }
 }
