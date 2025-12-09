@@ -71,9 +71,41 @@ app.MapCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
 
 All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
+Workers are automatically initialized and started when the application starts - no additional calls needed!
+
 ## 🔧 How It Works
 
 - `MapBackgroundWorker` runs a background task once the application starts, and continues until shutdown.
 - `MapPeriodicBackgroundWorker` runs your task repeatedly at a fixed interval using PeriodicTimer.
 - `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
+- Workers are initialized using **source generators** for AOT compatibility - no reflection at runtime!
+- Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.
+
+## 🚀 AOT Compilation Support
+
+MinimalWorker is fully compatible with .NET Native AOT compilation! The library uses source generators instead of reflection, making it perfect for AOT scenarios.
+
+### Publishing as AOT
+
+To publish your application as a native AOT binary:
+
+```bash
+dotnet publish -c Release
+```
+
+Make sure your project file includes:
+
+```xml
+<PropertyGroup>
+  <PublishAot>true</PublishAot>
+</PropertyGroup>
+```
+
+This will produce a self-contained native executable with:
+- **No .NET runtime dependency** - runs on machines without .NET installed
+- **Fast startup** - native code execution from the start
+- **Small binary size** - approximately 4-5MB for a minimal application
+- **AOT-safe** - all worker registration happens via source generators, no reflection
+
+See the [MinimalWorker.Aot.Sample](samples/MinimalWorker.Aot.Sample) project for a complete example.

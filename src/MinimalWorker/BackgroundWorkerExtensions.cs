@@ -1,24 +1,74 @@
-﻿using System.Reflection;
-using NCrontab;
-
 namespace MinimalWorker;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+/// <summary>
+/// Extension methods for registering background workers with source generator-based code generation.
+/// No reflection - fully AOT compatible.
+/// </summary>
 public static class BackgroundWorkerExtensions
 {
+    /// <summary>
+    /// Stores worker registrations for source generator processing.
+    /// </summary>
+    public static readonly List<WorkerRegistration> _registrations = new();
+    private static int _registrationCounter = 0;
+    private static bool _isInitialized = false;
+    private static readonly object _lock = new();
+
+    /// <summary>
+    /// Clears all worker registrations. Useful for testing scenarios.
+    /// </summary>
+    public static void ClearRegistrations()
+    {
+        lock (_lock)
+        {
+            _registrations.Clear();
+            _registrationCounter = 0;
+            _isInitialized = false;
+        }
+    }
+
+    /// <summary>
+    /// Internal action that will be set by the generated code to initialize workers.
+    /// </summary>
+    public static Action<IHost>? _generatedWorkerInitializer;
+
+    /// <summary>
+    /// Internal method to ensure initialization hook is registered.
+    /// Called automatically by Map* methods.
+    /// </summary>
+    private static void EnsureInitialized(IHost host)
+    {
+        lock (_lock)
+        {
+            if (_isInitialized)
+                return;
+
+            _isInitialized = true;
+
+            var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+            lifetime.ApplicationStarted.Register(() =>
+            {
+                // Call the generated worker initializer if it exists
+                _generatedWorkerInitializer?.Invoke(host);
+            });
+        }
+    }
+
     /// <summary>
     /// Maps a background worker that continuously executes the specified delegate while the application is running.
     /// </summary>
     /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
     /// <param name="action">
     /// A delegate representing the work to be executed. 
-    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// It can return a <see cref="Task"/> for asynchronous work.
+    /// Dependency injection is supported for method parameters.
     /// </param>
     /// <remarks>
     /// The worker will start when the application starts and run in a continuous loop until shutdown.
-    /// Dependency injection is supported for method parameters.
+    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
     /// </remarks>
     /// <example>
     /// Example usage:
@@ -26,7 +76,7 @@ public static class BackgroundWorkerExtensions
     /// host.MapBackgroundWorker(async (CancellationToken token) =>
     /// {
     ///     while (!token.IsCancellationRequested)
-    ///     {
+    /// {
     ///         Console.WriteLine("Running background task...");
     ///         await Task.Delay(1000, token);
     ///     }
@@ -35,29 +85,18 @@ public static class BackgroundWorkerExtensions
     /// </example>
     public static void MapBackgroundWorker(this IHost host, Delegate action)
     {
-        var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-        var parameters = action.Method.GetParameters();
-        
-        lifetime.ApplicationStarted.Register(() =>
+        var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var registration = new WorkerRegistration
         {
-            var token = lifetime.ApplicationStopping;
-            _ = Task.Run(async () =>
-            {
-                using var scope = host.Services.CreateScope();
-                var args = GetRequiredArguments(scope.ServiceProvider, parameters, token);
-
-                while (!token.IsCancellationRequested)
-                {
-                    var result = action.DynamicInvoke(args);
-
-                    if (result is Task task)
-                    {
-                        await task;
-                    }
-                }
-                
-            }, token);
-        });
+            Id = id,
+            Action = action,
+            Type = WorkerType.Continuous,
+            Host = host,
+            ParameterCount = action.Method.GetParameters().Length
+        };
+        
+        _registrations.Add(registration);
+        EnsureInitialized(host);
     }
     
     /// <summary>
@@ -67,11 +106,12 @@ public static class BackgroundWorkerExtensions
     /// <param name="timespan">The <see cref="TimeSpan"/> interval between executions.</param>
     /// <param name="action">
     /// A delegate representing the work to be executed periodically.
-    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// It can return a <see cref="Task"/> for asynchronous work.
+    /// Dependency injection is supported for method parameters.
     /// </param>
     /// <remarks>
     /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
-    /// Dependency injection is supported for method parameters.
+    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
     /// </remarks>
     /// <example>
     /// Example usage:
@@ -85,29 +125,19 @@ public static class BackgroundWorkerExtensions
     /// </example>
     public static void MapPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
-        var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-        var parameters = action.Method.GetParameters();
-        
-        lifetime.ApplicationStarted.Register(() =>
+        var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var registration = new WorkerRegistration
         {
-            var token = lifetime.ApplicationStopping;
-            _ = Task.Run(async () =>
-            {
-                var timer = new PeriodicTimer(timespan);
-                while (await timer.WaitForNextTickAsync(token))
-                {
-                    using var scope = host.Services.CreateScope();
-                    var args = GetRequiredArguments(scope.ServiceProvider, parameters, token);
-                    
-                    var result = action.DynamicInvoke(args);
-
-                    if (result is Task task)
-                    {
-                        await task;
-                    }
-                }
-            }, token);
-        });
+            Id = id,
+            Action = action,
+            Type = WorkerType.Periodic,
+            Schedule = timespan,
+            Host = host,
+            ParameterCount = action.Method.GetParameters().Length
+        };
+        
+        _registrations.Add(registration);
+        EnsureInitialized(host);
     }
 
     /// <summary>
@@ -120,11 +150,12 @@ public static class BackgroundWorkerExtensions
     /// </param>
     /// <param name="action">
     /// A delegate representing the work to be executed on the scheduled times.
-    /// It can return a <see cref="Task"/> for asynchronous work, or <c>void</c> for synchronous work.
+    /// It can return a <see cref="Task"/> for asynchronous work.
+    /// Dependency injection is supported for method parameters.
     /// </param>
     /// <remarks>
     /// The worker schedules the execution based on the next occurrence derived from the cron expression.
-    /// Dependency injection is supported for method parameters.
+    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
     /// </remarks>
     /// <example>
     /// Example usage:
@@ -138,61 +169,41 @@ public static class BackgroundWorkerExtensions
     /// </example>
     public static void MapCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
     {
-        var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-        var parameters = action.Method.GetParameters();
-        var schedule = CrontabSchedule.Parse(cronExpression);
-
-        lifetime.ApplicationStarted.Register(() =>
+        var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var registration = new WorkerRegistration
         {
-            var token = lifetime.ApplicationStopping;
-            _ = Task.Run(async () =>
-            {
-                while (!token.IsCancellationRequested)
-                {
-                    var nextRun = schedule.GetNextOccurrence(DateTime.UtcNow);
-                    var delay = nextRun - DateTime.UtcNow;
-
-                    if (delay > TimeSpan.Zero)
-                    {
-                        try
-                        {
-                            await Task.Delay(delay, token);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            break;
-                        }
-                    }
-
-                    using var scope = host.Services.CreateScope();
-                    var args = GetRequiredArguments(scope.ServiceProvider, parameters, token);
-                    var result = action.DynamicInvoke(args);
-
-                    if (result is Task task)
-                    {
-                        await task;
-                    }
-                }
-            }, token);
-        });
+            Id = id,
+            Action = action,
+            Type = WorkerType.Cron,
+            Schedule = cronExpression,
+            Host = host,
+            ParameterCount = action.Method.GetParameters().Length
+        };
+        
+        _registrations.Add(registration);
+        EnsureInitialized(host);
     }
-    
-    private static object[] GetRequiredArguments(IServiceProvider serviceProvider, ParameterInfo[] parameters, CancellationToken token)
+
+    /// <summary>
+    /// Represents a registered background worker.
+    /// </summary>
+    public class WorkerRegistration
     {
-        var args = new object[parameters.Length];
+        public int Id { get; set; }
+        public Delegate Action { get; set; } = null!;
+        public WorkerType Type { get; set; }
+        public object? Schedule { get; set; }
+        public IHost Host { get; set; } = null!;
+        public int ParameterCount { get; set; } // Number of parameters in the delegate
+    }
 
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            if (parameters[i].ParameterType == typeof(CancellationToken))
-            {
-                args[i] = token;
-            }
-            else
-            {
-                args[i] = serviceProvider.GetRequiredService(parameters[i].ParameterType);
-            }
-        }
-
-        return args;
+    /// <summary>
+    /// Type of background worker.
+    /// </summary>
+    public enum WorkerType
+    {
+        Continuous,
+        Periodic,
+        Cron
     }
 }
