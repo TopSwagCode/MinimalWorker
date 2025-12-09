@@ -71,30 +71,7 @@ app.MapCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
 
 All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
-### Important: Starting Workers
-
-After registering your workers, you must call `MapGeneratedWorkers()` to initialize and start them. This should be done after `StartAsync()`:
-
-```csharp
-await app.StartAsync();
-app.MapGeneratedWorkers();
-await app.WaitForShutdownAsync();
-```
-
-Or in a console application:
-
-```csharp
-var host = builder.Build();
-
-host.MapBackgroundWorker(async (CancellationToken token) =>
-{
-    // Your worker logic
-});
-
-await host.StartAsync();
-host.MapGeneratedWorkers();
-await host.WaitForShutdownAsync();
-```
+Workers are automatically initialized and started when the application starts - no additional calls needed!
 
 ## 🔧 How It Works
 
@@ -102,6 +79,7 @@ await host.WaitForShutdownAsync();
 - `MapPeriodicBackgroundWorker` runs your task repeatedly at a fixed interval using PeriodicTimer.
 - `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
 - Workers are initialized using **source generators** for AOT compatibility - no reflection at runtime!
+- Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 
 ## 🚀 AOT Compilation Support
 

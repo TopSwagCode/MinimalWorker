@@ -38,15 +38,18 @@ internal static class WorkerEmitter
     private static void EmitWorkerExtension(StringBuilder sb, List<WorkerInvocationModel> workers)
     {
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Generated extension methods to wire up background workers.");
+        sb.AppendLine("/// Generated class to wire up background workers using a module initializer.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine("public static class GeneratedBackgroundWorkerExtensions");
+        sb.AppendLine("internal static class GeneratedBackgroundWorkerInitializer");
         sb.AppendLine("{");
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Initializes and starts all registered background workers for this host.");
-        sb.AppendLine("    /// This method must be called after all MapBackgroundWorker calls.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    public static void MapGeneratedWorkers(this IHost host)");
+        sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
+        sb.AppendLine("    internal static void Initialize()");
+        sb.AppendLine("    {");
+        sb.AppendLine("        // Set the generated worker initializer");
+        sb.AppendLine("        BackgroundWorkerExtensions._generatedWorkerInitializer = InitializeWorkers;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static void InitializeWorkers(IHost host)");
         sb.AppendLine("    {");
         sb.AppendLine("        var registrations = BackgroundWorkerExtensions._registrations");
         sb.AppendLine("            .Where(r => r.Host == host)");

@@ -30,10 +30,7 @@ app.MapCronBackgroundWorker("* * * * *", async (IConsoleOutputService consoleOut
     return Task.CompletedTask;
 });
 
-await app.StartAsync();
-app.MapGeneratedWorkers();
-
 Console.WriteLine("Workers started. Press Ctrl+C to stop.");
-await app.WaitForShutdownAsync();
+await app.RunAsync();
 
 Console.WriteLine("Application stopped.");

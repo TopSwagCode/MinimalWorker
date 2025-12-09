@@ -33,7 +33,6 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
-        host.MapGeneratedWorkers();
         await Task.Delay(100);
         await host.StopAsync();
 
@@ -65,7 +64,6 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
-        host.MapGeneratedWorkers();
         await Task.Delay(200); // Give worker time to execute multiple times
         await host.StopAsync();
 
@@ -96,7 +94,6 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
-        host.MapGeneratedWorkers();
         await Task.Delay(303); // 3 as buffer
         await host.StopAsync();
 
@@ -126,7 +123,6 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
-        host.MapGeneratedWorkers();
         await Task.Delay(61000);
         await host.StopAsync();
 

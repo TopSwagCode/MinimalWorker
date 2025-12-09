@@ -1,5 +1,6 @@
 namespace MinimalWorker;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 /// <summary>
@@ -13,14 +14,47 @@ public static class BackgroundWorkerExtensions
     /// </summary>
     public static readonly List<WorkerRegistration> _registrations = new();
     private static int _registrationCounter = 0;
+    private static bool _isInitialized = false;
+    private static readonly object _lock = new();
 
     /// <summary>
     /// Clears all worker registrations. Useful for testing scenarios.
     /// </summary>
     public static void ClearRegistrations()
     {
-        _registrations.Clear();
-        _registrationCounter = 0;
+        lock (_lock)
+        {
+            _registrations.Clear();
+            _registrationCounter = 0;
+            _isInitialized = false;
+        }
+    }
+
+    /// <summary>
+    /// Internal action that will be set by the generated code to initialize workers.
+    /// </summary>
+    public static Action<IHost>? _generatedWorkerInitializer;
+
+    /// <summary>
+    /// Internal method to ensure initialization hook is registered.
+    /// Called automatically by Map* methods.
+    /// </summary>
+    private static void EnsureInitialized(IHost host)
+    {
+        lock (_lock)
+        {
+            if (_isInitialized)
+                return;
+
+            _isInitialized = true;
+
+            var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+            lifetime.ApplicationStarted.Register(() =>
+            {
+                // Call the generated worker initializer if it exists
+                _generatedWorkerInitializer?.Invoke(host);
+            });
+        }
     }
 
     /// <summary>
@@ -62,6 +96,7 @@ public static class BackgroundWorkerExtensions
         };
         
         _registrations.Add(registration);
+        EnsureInitialized(host);
     }
     
     /// <summary>
@@ -102,6 +137,7 @@ public static class BackgroundWorkerExtensions
         };
         
         _registrations.Add(registration);
+        EnsureInitialized(host);
     }
 
     /// <summary>
@@ -145,6 +181,7 @@ public static class BackgroundWorkerExtensions
         };
         
         _registrations.Add(registration);
+        EnsureInitialized(host);
     }
 
     /// <summary>
