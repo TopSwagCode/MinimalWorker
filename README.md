@@ -80,6 +80,7 @@ Workers are automatically initialized and started when the application starts - 
 - `MapCronBackgroundWorker` runs your task repeatedly based on a CRON expression (UTC time), using NCrontab for timing.
 - Workers are initialized using **source generators** for AOT compatibility - no reflection at runtime!
 - Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
+- Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.
 
 ## 🚀 AOT Compilation Support
 
@@ -108,4 +109,3 @@ This will produce a self-contained native executable with:
 - **AOT-safe** - all worker registration happens via source generators, no reflection
 
 See the [MinimalWorker.Aot.Sample](samples/MinimalWorker.Aot.Sample) project for a complete example.
-- Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.

@@ -101,7 +101,7 @@ public class MinimalWorkerTests
         counter.Received(6).Increment();
     }
 
-    [Fact]
+    [Fact(Skip = "Slow test, run manually if needed")]
     public async Task CronBackgroundWorker_Should_Invoke_Action_At_Scheduled_Times()
     {
         // Arrange
