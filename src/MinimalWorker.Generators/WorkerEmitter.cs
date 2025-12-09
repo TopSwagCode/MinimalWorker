@@ -70,7 +70,6 @@ internal static class WorkerEmitter
         foreach (var group in grouped)
         {
             var (paramCount, workerType) = group.Key;
-            var firstWorker = group.First();
             sb.AppendLine($"                case ({paramCount}, BackgroundWorkerExtensions.WorkerType.{workerType}):");
             sb.AppendLine($"                    InitializeWorker_{caseNum}(registration);");
             sb.AppendLine("                    break;");
