@@ -28,4 +28,6 @@ app.MapCronBackgroundWorker("* * * * *", async (CancellationToken ct, ChannelSer
     await channelService.SendNotificationAsync("Hello from Cron Background worker!");
 });
 
-app.Run();
+await app.StartAsync();
+app.MapGeneratedWorkers();
+await app.WaitForShutdownAsync();

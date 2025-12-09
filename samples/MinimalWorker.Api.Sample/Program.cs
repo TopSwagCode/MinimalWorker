@@ -46,7 +46,9 @@ app.MapBackgroundWorker(async (CancellationToken ct, ChannelService channelServi
     }
 });
 
-app.Run();
+await app.StartAsync();
+app.MapGeneratedWorkers();
+await app.WaitForShutdownAsync();
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {

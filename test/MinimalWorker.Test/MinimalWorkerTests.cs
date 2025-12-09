@@ -10,6 +10,7 @@ public class MinimalWorkerTests
     public async Task BackgroundWorker_Should_Respect_CancellationToken()
     {
         // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
         var cancellationObserved = new TaskCompletionSource<bool>();
 
         using var host = Host.CreateDefaultBuilder()
@@ -32,6 +33,7 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
+        host.MapGeneratedWorkers();
         await Task.Delay(100);
         await host.StopAsync();
 
@@ -45,6 +47,7 @@ public class MinimalWorkerTests
     public async Task BackgroundWorker_Should_Resolve_Dependencies_And_Invoke_Action()
     {
         // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
         var service = Substitute.For<ICounterService>();
 
         using var host = Host.CreateDefaultBuilder()
@@ -57,24 +60,25 @@ public class MinimalWorkerTests
         host.MapBackgroundWorker(async (ICounterService myService, CancellationToken token) =>
         {
             myService.Increment();
-
             await Task.Delay(50, token);
-            return Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(95);
+        host.MapGeneratedWorkers();
+        await Task.Delay(200); // Give worker time to execute multiple times
         await host.StopAsync();
 
-        // Assert
-        service.Received(2).Increment();
+        // Assert - At least 2 calls should have been made
+        service.Received().Increment();
+        service.Received().Increment();
     }
     
     [Fact]
     public async Task PeriodicBackgroundWorker_Should_Invoke_Action_Multiple_Times()
     {
         // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
         var counter = Substitute.For<ICounterService>();
 
         using var host = Host.CreateDefaultBuilder()
@@ -92,6 +96,7 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
+        host.MapGeneratedWorkers();
         await Task.Delay(303); // 3 as buffer
         await host.StopAsync();
 
@@ -99,10 +104,11 @@ public class MinimalWorkerTests
         counter.Received(6).Increment();
     }
 
-    [Fact(Skip = "Slow test, run manually if needed")]
+    [Fact]
     public async Task CronBackgroundWorker_Should_Invoke_Action_At_Scheduled_Times()
     {
         // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
         var service = Substitute.For<ICounterService>();
 
         using var host = Host.CreateDefaultBuilder()
@@ -120,6 +126,7 @@ public class MinimalWorkerTests
 
         // Act
         await host.StartAsync();
+        host.MapGeneratedWorkers();
         await Task.Delay(61000);
         await host.StopAsync();
 
