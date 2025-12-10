@@ -16,6 +16,12 @@ public static class BackgroundWorkerExtensions
     private static int _registrationCounter = 0;
     private static bool _isInitialized = false;
     private static readonly object _lock = new();
+    
+    /// <summary>
+    /// Internal flag to control whether to use Environment.Exit on validation failure.
+    /// When false (for testing), throws exception instead. Default is true (production behavior).
+    /// </summary>
+    internal static bool _useEnvironmentExit = true;
 
     /// <summary>
     /// Clears all worker registrations. This is intended for testing purposes only.
@@ -27,6 +33,7 @@ public static class BackgroundWorkerExtensions
             _registrations.Clear();
             _registrationCounter = 0;
             _isInitialized = false;
+            _useEnvironmentExit = true; // Reset to default
         }
     }
 
@@ -105,8 +112,16 @@ public static class BackgroundWorkerExtensions
                     Console.Error.WriteLine($"FATAL: Worker dependency validation failed: {ex.Message}");
                     Console.Error.WriteLine(ex.StackTrace);
                     
-                    // Stop the application and exit with error code
-                    Environment.Exit(1);
+                    // In production, exit immediately with error code
+                    // In tests, throw to allow test frameworks to handle it
+                    if (_useEnvironmentExit)
+                    {
+                        Environment.Exit(1);
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             });
         }

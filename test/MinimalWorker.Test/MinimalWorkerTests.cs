@@ -706,6 +706,8 @@ public class MinimalWorkerTests
     {
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
+        BackgroundWorkerExtensions._useEnvironmentExit = false; // Disable Environment.Exit for testing
+        
         var logMessages = new List<string>();
         
         var host = Host.CreateDefaultBuilder()
@@ -727,19 +729,19 @@ public class MinimalWorkerTests
                 await Task.Delay(50, token);
             });
 
-        // Act
+        // Act & Assert
+        // StartAsync should complete, but the exception will be thrown in ApplicationStarted callback
         await host.StartAsync();
-        await Task.Delay(100); // Give time for error to be logged
         
-        // Assert
+        // Give time for the ApplicationStarted callback to execute and throw
+        await Task.Delay(100);
+        
         // Verify that a critical error was logged about the missing dependency
-        var hasCriticalError = logMessages.Any(msg => 
-            msg.Contains("An error occurred starting the application") ||
-            msg.Contains("IUnregisteredService"));
+        var errorOutput = string.Join("\n", logMessages);
+        var hasExpectedError = errorOutput.Contains("IUnregisteredService");
         
-        Assert.True(hasCriticalError, 
-            "Expected critical error log about missing dependency. " +
-            $"Logs: {string.Join(", ", logMessages)}");
+        Assert.True(hasExpectedError, 
+            $"Expected error about missing IUnregisteredService dependency. Logs:\n{errorOutput}");
         
         await host.StopAsync();
         host.Dispose();
