@@ -18,9 +18,9 @@ public static class BackgroundWorkerExtensions
     private static readonly object _lock = new();
 
     /// <summary>
-    /// Clears all worker registrations. Useful for testing scenarios.
+    /// Clears all worker registrations. This is intended for testing purposes only.
     /// </summary>
-    public static void ClearRegistrations()
+    internal static void ClearRegistrations()
     {
         lock (_lock)
         {
@@ -66,6 +66,10 @@ public static class BackgroundWorkerExtensions
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
+    /// <param name="onError">
+    /// Optional error handler for unhandled exceptions in the worker.
+    /// If not provided, exceptions will be rethrown and may crash the worker.
+    /// </param>
     /// <remarks>
     /// The worker will start when the application starts and run in a continuous loop until shutdown.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -83,7 +87,7 @@ public static class BackgroundWorkerExtensions
     /// });
     /// </code>
     /// </example>
-    public static void RunBackgroundWorker(this IHost host, Delegate action)
+    public static void RunBackgroundWorker(this IHost host, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
@@ -92,7 +96,8 @@ public static class BackgroundWorkerExtensions
             Action = action,
             Type = WorkerType.Continuous,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length
+            ParameterCount = action.Method.GetParameters().Length,
+            OnError = onError
         };
         
         _registrations.Add(registration);
@@ -109,6 +114,10 @@ public static class BackgroundWorkerExtensions
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
+    /// <param name="onError">
+    /// Optional error handler for unhandled exceptions in the worker.
+    /// If not provided, exceptions will be rethrown and may crash the worker.
+    /// </param>
     /// <remarks>
     /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -123,7 +132,7 @@ public static class BackgroundWorkerExtensions
     /// });
     /// </code>
     /// </example>
-    public static void RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
+    public static void RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
@@ -133,7 +142,8 @@ public static class BackgroundWorkerExtensions
             Type = WorkerType.Periodic,
             Schedule = timespan,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length
+            ParameterCount = action.Method.GetParameters().Length,
+            OnError = onError
         };
         
         _registrations.Add(registration);
@@ -153,6 +163,10 @@ public static class BackgroundWorkerExtensions
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
+    /// <param name="onError">
+    /// Optional error handler for unhandled exceptions in the worker.
+    /// If not provided, exceptions will be rethrown and may crash the worker.
+    /// </param>
     /// <remarks>
     /// The worker schedules the execution based on the next occurrence derived from the cron expression.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -167,7 +181,7 @@ public static class BackgroundWorkerExtensions
     /// });
     /// </code>
     /// </example>
-    public static void RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
+    public static void RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var registration = new WorkerRegistration
@@ -177,7 +191,8 @@ public static class BackgroundWorkerExtensions
             Type = WorkerType.Cron,
             Schedule = cronExpression,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length
+            ParameterCount = action.Method.GetParameters().Length,
+            OnError = onError
         };
         
         _registrations.Add(registration);
@@ -195,6 +210,7 @@ public static class BackgroundWorkerExtensions
         public object? Schedule { get; set; }
         public IHost Host { get; set; } = null!;
         public int ParameterCount { get; set; } // Number of parameters in the delegate
+        public Action<Exception>? OnError { get; set; } // Optional error handler
     }
 
     /// <summary>

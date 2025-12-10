@@ -128,25 +128,25 @@ internal static class WorkerEmitter
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
-        sb.AppendLine("            try");
-        sb.AppendLine("            {");
-        sb.AppendLine("                using var scope = host.Services.CreateScope();");
+        sb.AppendLine("            using var scope = host.Services.CreateScope();");
         
         // Generate DI resolution
         foreach (var param in worker.Parameters)
         {
             if (param.IsCancellationToken)
             {
-                sb.AppendLine($"                var {param.Name} = token;");
+                sb.AppendLine($"            var {param.Name} = token;");
             }
             else
             {
-                sb.AppendLine($"                var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
+                sb.AppendLine($"            var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
             }
         }
         
         sb.AppendLine();
-        sb.AppendLine("                while (!token.IsCancellationRequested)");
+        sb.AppendLine("            while (!token.IsCancellationRequested)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                try");
         sb.AppendLine("                {");
         
         // Invoke the delegate
@@ -154,10 +154,22 @@ internal static class WorkerEmitter
         sb.AppendLine($"                    await (({delegateType})registration.Action)({paramNames});");
         
         sb.AppendLine("                }");
-        sb.AppendLine("            }");
-        sb.AppendLine("            catch (Exception ex)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                Console.WriteLine($\"Worker error: {ex}\");");
+        sb.AppendLine("                catch (OperationCanceledException)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    // Graceful shutdown - exit without error");
+        sb.AppendLine("                    break;");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    if (registration.OnError != null)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        registration.OnError(ex);");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    else");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        throw;");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
@@ -170,21 +182,25 @@ internal static class WorkerEmitter
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
-        sb.AppendLine("            var timer = new PeriodicTimer(schedule);");
-        sb.AppendLine("            while (await timer.WaitForNextTickAsync(token))");
+        sb.AppendLine("            try");
         sb.AppendLine("            {");
-        sb.AppendLine("                using var scope = host.Services.CreateScope();");
+        sb.AppendLine("                var timer = new PeriodicTimer(schedule);");
+        sb.AppendLine("                while (await timer.WaitForNextTickAsync(token))");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    try");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        using var scope = host.Services.CreateScope();");
         
         // Generate DI resolution
         foreach (var param in worker.Parameters)
         {
             if (param.IsCancellationToken)
             {
-                sb.AppendLine($"                var {param.Name} = token;");
+                sb.AppendLine($"                        var {param.Name} = token;");
             }
             else
             {
-                sb.AppendLine($"                var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
+                sb.AppendLine($"                        var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
             }
         }
         
@@ -192,8 +208,30 @@ internal static class WorkerEmitter
         
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
-        sb.AppendLine($"                await (({delegateType})registration.Action)({paramNames});");
+        sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
         
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    catch (OperationCanceledException)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        // Graceful shutdown - exit without error");
+        sb.AppendLine("                        break;");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    catch (Exception ex)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        if (registration.OnError != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            registration.OnError(ex);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            throw;");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (OperationCanceledException)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // Graceful shutdown - exit without error");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
@@ -207,35 +245,39 @@ internal static class WorkerEmitter
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
-        sb.AppendLine("            while (!token.IsCancellationRequested)");
+        sb.AppendLine("            try");
         sb.AppendLine("            {");
-        sb.AppendLine("                var nextRun = schedule.GetNextOccurrence(DateTime.UtcNow);");
-        sb.AppendLine("                var delay = nextRun - DateTime.UtcNow;");
-        sb.AppendLine();
-        sb.AppendLine("                if (delay > TimeSpan.Zero)");
+        sb.AppendLine("                while (!token.IsCancellationRequested)");
         sb.AppendLine("                {");
+        sb.AppendLine("                    var nextRun = schedule.GetNextOccurrence(DateTime.UtcNow);");
+        sb.AppendLine("                    var delay = nextRun - DateTime.UtcNow;");
+        sb.AppendLine();
+        sb.AppendLine("                    if (delay > TimeSpan.Zero)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        try");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            await Task.Delay(delay, token);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        catch (OperationCanceledException)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            break;");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine();
         sb.AppendLine("                    try");
         sb.AppendLine("                    {");
-        sb.AppendLine("                        await Task.Delay(delay, token);");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                    catch (TaskCanceledException)");
-        sb.AppendLine("                    {");
-        sb.AppendLine("                        break;");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                }");
-        sb.AppendLine();
-        sb.AppendLine("                using var scope = host.Services.CreateScope();");
+        sb.AppendLine("                        using var scope = host.Services.CreateScope();");
         
         // Generate DI resolution
         foreach (var param in worker.Parameters)
         {
             if (param.IsCancellationToken)
             {
-                sb.AppendLine($"                var {param.Name} = token;");
+                sb.AppendLine($"                        var {param.Name} = token;");
             }
             else
             {
-                sb.AppendLine($"                var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
+                sb.AppendLine($"                        var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
             }
         }
         
@@ -243,8 +285,30 @@ internal static class WorkerEmitter
         
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
-        sb.AppendLine($"                await (({delegateType})registration.Action)({paramNames});");
+        sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
         
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    catch (OperationCanceledException)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        // Graceful shutdown - exit without error");
+        sb.AppendLine("                        break;");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                    catch (Exception ex)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        if (registration.OnError != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            registration.OnError(ex);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            throw;");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (OperationCanceledException)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // Graceful shutdown - exit without error");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
