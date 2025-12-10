@@ -303,6 +303,8 @@ public class MinimalWorkerTests
     {
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
+        BackgroundWorkerExtensions._useEnvironmentExit = false; // Disable Environment.Exit for testing
+        
         var executionCount = 0;
 
         using var host = Host.CreateDefaultBuilder()
@@ -742,6 +744,55 @@ public class MinimalWorkerTests
         
         Assert.True(hasExpectedError, 
             $"Expected error about missing IUnregisteredService dependency. Logs:\n{errorOutput}");
+        
+        await host.StopAsync();
+        host.Dispose();
+    }
+
+    [Fact]
+    public async Task BackgroundWorker_Should_Crash_App_On_Unhandled_Runtime_Exception()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        BackgroundWorkerExtensions._useEnvironmentExit = false; // Disable Environment.Exit for testing
+        
+        var logMessages = new List<string>();
+        var executionCount = 0;
+        
+        var host = Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                logging.AddProvider(new TestLoggerProvider(logMessages));
+            })
+            .Build();
+
+        // Worker that throws an exception on second execution
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+        {
+            executionCount++;
+            if (executionCount >= 2)
+            {
+                throw new InvalidOperationException("Simulated runtime error");
+            }
+            await Task.Delay(50, token);
+        });
+
+        // Act
+        await host.StartAsync();
+        
+        // Give time for the worker to execute twice and throw
+        await Task.Delay(300);
+        
+        // Assert
+        // Verify that a critical error was logged about the unhandled exception
+        var errorOutput = string.Join("\n", logMessages);
+        var hasFatalError = errorOutput.Contains("FATAL") || errorOutput.Contains("Simulated runtime error");
+        
+        Assert.True(hasFatalError, 
+            $"Expected FATAL error about unhandled exception. Logs:\n{errorOutput}");
+        
+        Assert.True(executionCount >= 2, "Worker should have executed at least twice before throwing");
         
         await host.StopAsync();
         host.Dispose();

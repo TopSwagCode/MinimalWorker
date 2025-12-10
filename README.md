@@ -19,6 +19,7 @@
 - 🔄 Built-in support for `CancellationToken`
 - 🧪 Works seamlessly with dependency injection (`IServiceProvider`)
 - 🧼 Minimal and clean API
+- 🏎️ AOT Compilation Support
 
 ---
 
@@ -134,7 +135,7 @@ app.RunBackgroundWorker((IMyService myService, IOtherService otherService) =>
 });
 
 await app.RunAsync(); 
-// 💥 Application terminates immediately:
+// Application terminates immediately:
 // FATAL: Worker dependency validation failed: 
 // No service for type 'IOtherService' has been registered.
 ```

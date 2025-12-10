@@ -24,6 +24,22 @@ public static class BackgroundWorkerExtensions
     internal static bool _useEnvironmentExit = true;
 
     /// <summary>
+    /// Internal method to terminate the application on fatal worker errors.
+    /// Can be controlled via _useEnvironmentExit for testing purposes.
+    /// </summary>
+    public static void TerminateOnFatalError(Exception ex)
+    {
+        if (_useEnvironmentExit)
+        {
+            Environment.Exit(1);
+        }
+        else
+        {
+            throw new InvalidOperationException("Fatal worker error", ex);
+        }
+    }
+
+    /// <summary>
     /// Clears all worker registrations. This is intended for testing purposes only.
     /// </summary>
     internal static void ClearRegistrations()
