@@ -89,15 +89,41 @@ public class WorkerGenerator : IIncrementalGenerator
         if (args.Count == 0)
             return model; // Return even with no args to see if we get here
 
-        // Get the delegate argument (last argument is always the delegate)
-        var delegateArg = args[args.Count - 1];
+        // Find the delegate argument - it's the argument for the "action" parameter
+        // or the second-to-last if onError is provided, otherwise the last argument
+        ArgumentSyntax? delegateArg = null;
+        
+        // Try to find by argument name first
+        foreach (var arg in args)
+        {
+            if (arg.NameColon?.Name.Identifier.ValueText == "action")
+            {
+                delegateArg = arg;
+                break;
+            }
+        }
+        
+        // If not found by name, use position-based logic
+        if (delegateArg == null)
+        {
+            // For Continuous: delegate is at index 0
+            // For Periodic/Cron: delegate is at index 1
+            var delegateIndex = (model.Type == WorkerType.Continuous) ? 0 : 1;
+            if (args.Count > delegateIndex)
+            {
+                delegateArg = args[delegateIndex];
+            }
+        }
+        
+        if (delegateArg == null)
+            return model; // Couldn't find delegate argument
         
         // For Periodic and Cron workers, extract schedule argument
-        if (model.Type == WorkerType.Periodic && args.Count > 1)
+        if (model.Type == WorkerType.Periodic && args.Count > 0)
         {
             model.ScheduleArgument = args[0].Expression.ToString();
         }
-        else if (model.Type == WorkerType.Cron && args.Count > 1)
+        else if (model.Type == WorkerType.Cron && args.Count > 0)
         {
             model.ScheduleArgument = args[0].Expression.ToString();
         }

@@ -60,7 +60,7 @@ app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (MyService servic
 });
 ```
 
-### Command run on notice (Cron) Background Worker
+### Cron-scheduled Background Worker
 
 ```csharp
 app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService service) =>
@@ -68,6 +68,30 @@ app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
     await service.SendDailyProgressReport();
 });
 ```
+
+### Error Handling
+
+All worker methods accept an optional `onError` callback for handling exceptions:
+
+```csharp
+app.RunBackgroundWorker(
+    async (MyService service, CancellationToken token) =>
+    {
+        await service.DoRiskyWork();
+    },
+    onError: ex =>
+    {
+        // Custom error handling - log, alert, etc.
+        Console.WriteLine($"Worker error: {ex.Message}");
+        // Worker continues running after error
+    }
+);
+```
+
+**Important**: 
+- If `onError` is **not provided**, exceptions are **rethrown** and may crash the worker
+- If `onError` **is provided**, the exception is passed to your handler and the worker continues
+- `OperationCanceledException` is always handled gracefully during shutdown
 
 All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
