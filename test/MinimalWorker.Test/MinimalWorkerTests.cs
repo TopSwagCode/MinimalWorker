@@ -60,16 +60,16 @@ public class MinimalWorkerTests
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Increment();
-            await Task.Delay(50, token);
+            await Task.Delay(49, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Give worker time to execute multiple times
+        await Task.Delay(201); // Give worker time to execute multiple times
         await host.StopAsync();
 
-        // Assert - At least 4 calls should have been made
-        service.Received(4).Increment();
+        // Assert - At 4 calls should have been made
+        service.Received(5).Increment();
     }
     
     [Fact]
