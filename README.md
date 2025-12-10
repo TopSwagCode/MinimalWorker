@@ -184,3 +184,7 @@ This will produce a self-contained native executable with:
 - **AOT-safe** - all worker registration happens via source generators, no reflection
 
 See the [MinimalWorker.Aot.Sample](samples/MinimalWorker.Aot.Sample) project for a complete example.
+
+## 👋
+
+Thank you for reading this far :) Hope you find it usefull. Feel free to open issues, give feedback or just say hi :D
