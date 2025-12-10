@@ -18,3 +18,18 @@ public class ConsoleOutputService : IConsoleOutputService
         System.Console.WriteLine(message + " - Scoped Guid: " + _guid );
     }
 }
+
+
+public interface IMissingDependency
+{
+    Task WriteLineAsync(string message);
+}
+
+public class MissingDependency : IMissingDependency
+{
+    public Task WriteLineAsync(string message)
+    {
+        Console.WriteLine(message);
+        return Task.CompletedTask;
+    }
+}

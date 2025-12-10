@@ -55,25 +55,31 @@ internal static class WorkerEmitter
         sb.AppendLine("            .Where(r => r.Host == host)");
         sb.AppendLine("            .ToList();");
         sb.AppendLine();
-        sb.AppendLine("        // Initialize each worker based on its parameter count and type");
+        sb.AppendLine("        // Initialize each worker based on its parameter signature");
         sb.AppendLine("        foreach (var registration in registrations)");
         sb.AppendLine("        {");
         
-        // Generate a switch statement to match workers by parameter count and type
-        sb.AppendLine("            var key = (registration.ParameterCount, registration.Type);");
-        sb.AppendLine("            switch (key)");
+        // Generate a switch statement to match workers by their unique signature
+        sb.AppendLine("            switch (registration.Signature)");
         sb.AppendLine("            {");
         
-        // Group workers by (ParameterCount, Type) and emit cases
-        var grouped = workers.GroupBy(w => (w.Parameters.Count, w.Type));
+        // Create a case for each unique worker signature
         int caseNum = 1;
-        foreach (var group in grouped)
+        var workerMap = new Dictionary<string, WorkerInvocationModel>();
+        foreach (var worker in workers)
         {
-            var (paramCount, workerType) = group.Key;
-            sb.AppendLine($"                case ({paramCount}, BackgroundWorkerExtensions.WorkerType.{workerType}):");
-            sb.AppendLine($"                    InitializeWorker_{caseNum}(registration);");
-            sb.AppendLine("                    break;");
-            caseNum++;
+            // Build signature from worker parameters - strip global:: prefix to match runtime format
+            var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "")));
+            var signature = $"{worker.Type}:{paramTypes}";
+            
+            if (!workerMap.ContainsKey(signature))
+            {
+                workerMap[signature] = worker;
+                sb.AppendLine($"                case \"{signature}\":");
+                sb.AppendLine($"                    InitializeWorker_{caseNum}(registration);");
+                sb.AppendLine("                    break;");
+                caseNum++;
+            }
         }
         
         sb.AppendLine("                default:");
@@ -84,11 +90,11 @@ internal static class WorkerEmitter
         sb.AppendLine("    }");
         sb.AppendLine();
         
-        // Emit worker initialization methods - one for each unique (ParameterCount, Type) combination
+        // Emit worker initialization methods - one for each unique signature
         caseNum = 1;
-        foreach (var group in grouped)
+        foreach (var kvp in workerMap)
         {
-            EmitWorkerInitializer(sb, group.First(), caseNum);
+            EmitWorkerInitializer(sb, kvp.Value, caseNum);
             caseNum++;
         }
         
@@ -124,6 +130,21 @@ internal static class WorkerEmitter
     {
         var delegateType = GetDelegateType(worker);
         
+        sb.AppendLine("        // Validate dependencies exist before starting worker (fail-fast)");
+        sb.AppendLine("        using (var validationScope = host.Services.CreateScope())");
+        sb.AppendLine("        {");
+        
+        // Validate all dependencies can be resolved
+        foreach (var param in worker.Parameters)
+        {
+            if (!param.IsCancellationToken)
+            {
+                sb.AppendLine($"            _ = validationScope.ServiceProvider.GetRequiredService<{param.Type}>();");
+            }
+        }
+        
+        sb.AppendLine("        }");
+        sb.AppendLine();
         sb.AppendLine("        // Start worker immediately - host has already started");
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");
         sb.AppendLine("        _ = Task.Run(async () =>");
@@ -178,6 +199,21 @@ internal static class WorkerEmitter
     {
         var delegateType = GetDelegateType(worker);
         
+        sb.AppendLine("        // Validate dependencies exist before starting worker (fail-fast)");
+        sb.AppendLine("        using (var validationScope = host.Services.CreateScope())");
+        sb.AppendLine("        {");
+        
+        // Validate all dependencies can be resolved
+        foreach (var param in worker.Parameters)
+        {
+            if (!param.IsCancellationToken)
+            {
+                sb.AppendLine($"            _ = validationScope.ServiceProvider.GetRequiredService<{param.Type}>();");
+            }
+        }
+        
+        sb.AppendLine("        }");
+        sb.AppendLine();
         sb.AppendLine("        var schedule = (TimeSpan)registration.Schedule!;");
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");
         sb.AppendLine("        _ = Task.Run(async () =>");
@@ -240,6 +276,21 @@ internal static class WorkerEmitter
     {
         var delegateType = GetDelegateType(worker);
         
+        sb.AppendLine("        // Validate dependencies exist before starting worker (fail-fast)");
+        sb.AppendLine("        using (var validationScope = host.Services.CreateScope())");
+        sb.AppendLine("        {");
+        
+        // Validate all dependencies can be resolved
+        foreach (var param in worker.Parameters)
+        {
+            if (!param.IsCancellationToken)
+            {
+                sb.AppendLine($"            _ = validationScope.ServiceProvider.GetRequiredService<{param.Type}>();");
+            }
+        }
+        
+        sb.AppendLine("        }");
+        sb.AppendLine();
         sb.AppendLine("        var cronExpression = (string)registration.Schedule!;");
         sb.AppendLine("        var schedule = NCrontab.CrontabSchedule.Parse(cronExpression);");
         sb.AppendLine("        var token = lifetime.ApplicationStopping;");

@@ -13,9 +13,17 @@ var app = builder.Build();
 // Simple continuous worker
 app.RunBackgroundWorker(async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
 {
-    await consoleOutputService.WriteLineAsync($"[{DateTime.Now:HH:mm:ss}] Continuous worker executing...");
+    await consoleOutputService.WriteLineAsync($"B:[{DateTime.Now:HH:mm:ss}] Continuous worker executing...");
     await Task.Delay(1000, ct);
 });
+
+// Simple continuous worker
+app.RunBackgroundWorker(async (IMissingDependency missingDependency, CancellationToken ct) =>
+{
+    await missingDependency.WriteLineAsync($"A:[{DateTime.Now:HH:mm:ss}] Continuous worker executing...");
+    await Task.Delay(1000, ct);
+});
+
 
 // Periodic worker
 app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>

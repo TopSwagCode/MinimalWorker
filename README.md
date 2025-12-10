@@ -120,6 +120,33 @@ app.RunBackgroundWorker(
 
 **Note**: This captures singleton services. For scoped services, this approach has limitations. Native DI support for error handlers is being considered for a future release.
 
+#### Startup Dependency Validation
+
+MinimalWorker validates that all required dependencies for your workers are registered **during application startup**. If any dependencies are missing, the application will fail immediately with a clear error message:
+
+```csharp
+builder.Services.AddSingleton<IMyService, MyService>();
+// Forgot to register IOtherService!
+
+app.RunBackgroundWorker((IMyService myService, IOtherService otherService) =>
+{
+    // This worker will never run
+});
+
+await app.RunAsync(); 
+// 💥 Application terminates immediately:
+// FATAL: Worker dependency validation failed: 
+// No service for type 'IOtherService' has been registered.
+```
+
+**Behavior**:
+- ✅ **Fail-fast** - Application exits immediately during startup (not on first execution)
+- ✅ **Clear error messages** - Shows exactly which dependency is missing
+- ✅ **Exit code 1** - Proper error code for container orchestrators and CI/CD
+- ✅ **Production-safe** - Prevents workers from running with missing dependencies
+
+This ensures you catch configuration errors early, before deploying to production. The validation happens after all services are registered but before workers start executing, using the same dependency resolution mechanism as the workers themselves.
+
 ## 🔧 How It Works
 
 - `RunBackgroundWorker` runs a background task once the application starts, and continues until shutdown.

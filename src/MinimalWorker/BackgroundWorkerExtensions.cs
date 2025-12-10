@@ -31,13 +31,56 @@ public static class BackgroundWorkerExtensions
     }
 
     /// <summary>
+    /// Formats a type name to match the source generator format.
+    /// </summary>
+    private static string FormatTypeName(Type type)
+    {
+        // Map common types to their C# keyword equivalents
+        if (type == typeof(string)) return "string";
+        if (type == typeof(int)) return "int";
+        if (type == typeof(long)) return "long";
+        if (type == typeof(short)) return "short";
+        if (type == typeof(byte)) return "byte";
+        if (type == typeof(sbyte)) return "sbyte";
+        if (type == typeof(uint)) return "uint";
+        if (type == typeof(ulong)) return "ulong";
+        if (type == typeof(ushort)) return "ushort";
+        if (type == typeof(bool)) return "bool";
+        if (type == typeof(char)) return "char";
+        if (type == typeof(decimal)) return "decimal";
+        if (type == typeof(double)) return "double";
+        if (type == typeof(float)) return "float";
+        if (type == typeof(object)) return "object";
+        
+        if (!type.IsGenericType)
+        {
+            return type.FullName ?? type.Name;
+        }
+
+        // For generic types like IRepository<string>, format as "Namespace.IRepository<string>"
+        var genericTypeDef = type.GetGenericTypeDefinition();
+        var genericArgs = type.GetGenericArguments();
+        var baseName = genericTypeDef.FullName ?? genericTypeDef.Name;
+        
+        // Remove the `1, `2 suffix from generic type names
+        var tickIndex = baseName.IndexOf('`');
+        if (tickIndex > 0)
+        {
+            baseName = baseName.Substring(0, tickIndex);
+        }
+
+        var formattedArgs = string.Join(",", genericArgs.Select(FormatTypeName));
+        return $"{baseName}<{formattedArgs}>";
+    }
+
+    /// <summary>
     /// Internal action that will be set by the generated code to initialize workers.
     /// </summary>
     public static Action<IHost>? _generatedWorkerInitializer;
 
     /// <summary>
     /// Internal method to ensure initialization hook is registered.
-    /// Called automatically by Map* methods.
+    /// Called automatically by Run* methods.
     /// </summary>
     private static void EnsureInitialized(IHost host)
     {
@@ -51,8 +94,20 @@ public static class BackgroundWorkerExtensions
             var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
             lifetime.ApplicationStarted.Register(() =>
             {
-                // Call the generated worker initializer if it exists
-                _generatedWorkerInitializer?.Invoke(host);
+                try
+                {
+                    // Initialize all workers and validate their dependencies
+                    _generatedWorkerInitializer?.Invoke(host);
+                }
+                catch (Exception ex)
+                {
+                    // Log the critical error
+                    Console.Error.WriteLine($"FATAL: Worker dependency validation failed: {ex.Message}");
+                    Console.Error.WriteLine(ex.StackTrace);
+                    
+                    // Stop the application and exit with error code
+                    Environment.Exit(1);
+                }
             });
         }
     }
@@ -90,13 +145,17 @@ public static class BackgroundWorkerExtensions
     public static void RunBackgroundWorker(this IHost host, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var parameters = action.Method.GetParameters();
+        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        
         var registration = new WorkerRegistration
         {
             Id = id,
             Action = action,
             Type = WorkerType.Continuous,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length,
+            ParameterCount = parameters.Length,
+            Signature = $"{WorkerType.Continuous}:{signature}",
             OnError = onError
         };
         
@@ -135,6 +194,9 @@ public static class BackgroundWorkerExtensions
     public static void RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var parameters = action.Method.GetParameters();
+        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        
         var registration = new WorkerRegistration
         {
             Id = id,
@@ -142,7 +204,8 @@ public static class BackgroundWorkerExtensions
             Type = WorkerType.Periodic,
             Schedule = timespan,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length,
+            ParameterCount = parameters.Length,
+            Signature = $"{WorkerType.Periodic}:{signature}",
             OnError = onError
         };
         
@@ -184,6 +247,9 @@ public static class BackgroundWorkerExtensions
     public static void RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action, Action<Exception>? onError = null)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var parameters = action.Method.GetParameters();
+        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        
         var registration = new WorkerRegistration
         {
             Id = id,
@@ -191,7 +257,8 @@ public static class BackgroundWorkerExtensions
             Type = WorkerType.Cron,
             Schedule = cronExpression,
             Host = host,
-            ParameterCount = action.Method.GetParameters().Length,
+            ParameterCount = parameters.Length,
+            Signature = $"{WorkerType.Cron}:{signature}",
             OnError = onError
         };
         
@@ -211,6 +278,7 @@ public static class BackgroundWorkerExtensions
         public IHost Host { get; set; } = null!;
         public int ParameterCount { get; set; } // Number of parameters in the delegate
         public Action<Exception>? OnError { get; set; } // Optional error handler
+        public string Signature { get; set; } = string.Empty; // Unique signature based on parameter types
     }
 
     /// <summary>
