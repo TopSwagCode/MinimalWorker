@@ -291,7 +291,7 @@
     },
     {
       "id": 11,
-      "title": "All Worker Logs",
+      "title": "All Worker Logs (Formatted)",
       "type": "logs",
       "gridPos": {"h": 10, "w": 12, "x": 0, "y": 29},
       "datasource": {
@@ -300,14 +300,14 @@
       },
       "targets": [
         {
-          "expr": "{service_name=\"MinimalWorker.Sample\"} | json",
+          "expr": "{service_name=\"MinimalWorker.Sample\"} | json | line_format `{{.timestamp}} [{{.severity}}] {{.body}}`",
           "legendFormat": "",
           "refId": "A"
         }
       ],
       "options": {
-        "showTime": true,
-        "showLabels": true,
+        "showTime": false,
+        "showLabels": false,
         "showCommonLabels": false,
         "wrapLogMessage": true,
         "prettifyLogMessage": false,
@@ -335,6 +335,33 @@
       "options": {
         "showTime": true,
         "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 14,
+      "title": "Logs by Worker (Structured)",
+      "type": "logs",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 39},
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{service_name=\"MinimalWorker.Sample\"} | json | __error__=\"\" | line_format `[{{.severity}}] {{.attributes.WorkerName}} - {{.body}}`",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
         "showCommonLabels": false,
         "wrapLogMessage": true,
         "prettifyLogMessage": false,

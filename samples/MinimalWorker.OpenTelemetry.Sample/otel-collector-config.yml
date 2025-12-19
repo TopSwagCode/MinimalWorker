@@ -8,8 +8,21 @@ receivers:
 
 processors:
   batch:
-    timeout: 10s
+    timeout: 1s
     send_batch_size: 1024
+  
+  # Extract structured attributes for better Loki labeling
+  resource:
+    attributes:
+      - key: loki.resource.labels
+        value: service.name, deployment.environment
+        action: insert
+  
+  attributes:
+    actions:
+      - key: loki.attribute.labels
+        value: severity, traceid, spanid
+        action: insert
 
 exporters:
   # Export traces to Jaeger
@@ -47,7 +60,7 @@ service:
     
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [batch, resource, attributes]
       exporters: [loki, debug]
 
   telemetry:
