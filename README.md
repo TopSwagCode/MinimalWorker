@@ -70,6 +70,45 @@ app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
 });
 ```
 
+### Named Workers
+
+All worker methods support an optional `name` parameter for easier identification in logs, metrics, and traces:
+
+```csharp
+// Named continuous worker
+app.RunBackgroundWorker(
+    name: "order-processor",
+    async (OrderService service, CancellationToken token) =>
+    {
+        await service.ProcessOrders();
+    });
+
+// Named periodic worker
+app.RunPeriodicBackgroundWorker(
+    name: "cache-cleanup",
+    TimeSpan.FromMinutes(30),
+    async (CacheService cache) =>
+    {
+        await cache.Cleanup();
+    });
+
+// Named cron worker
+app.RunCronBackgroundWorker(
+    name: "nightly-report",
+    "0 2 * * *",
+    async (ReportService reports) =>
+    {
+        await reports.GenerateDailyReport();
+    });
+```
+
+Worker names appear in:
+- **Logs**: `Worker 'order-processor' started (Type: continuous, Id: 1)`
+- **Metrics**: `worker.name="order-processor"` tag
+- **Traces**: `worker.name` attribute on spans
+
+If no name is provided, a default name is generated (e.g., `worker-1`).
+
 All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
 Workers are automatically initialized and started when the application starts - no additional calls needed!
@@ -175,9 +214,12 @@ MinimalWorker provides **production-grade observability** out of the box with **
 
 | Metric Name | Type | Description | Dimensions |
 |-------------|------|-------------|------------|
-| `minimal_worker.executions` | Counter | Total worker executions | `worker.id`, `worker.type` |
-| `minimal_worker.errors` | Counter | Total worker errors | `worker.id`, `worker.type`, `error.type` |
-| `minimal_worker.duration` | Histogram | Execution duration (ms) | `worker.id`, `worker.type` |
+| `worker.executions` | Counter | Total worker executions | `worker.id`, `worker.name`, `worker.type` |
+| `worker.errors` | Counter | Total worker errors | `worker.id`, `worker.name`, `worker.type`, `exception.type` |
+| `worker.duration` | Histogram | Execution duration (ms) | `worker.id`, `worker.name`, `worker.type` |
+| `worker.active` | Gauge | Active workers (1=running, 0=stopped) | `worker.id`, `worker.name`, `worker.type` |
+| `worker.last_success_time` | Gauge | Unix timestamp of last successful execution | `worker.id`, `worker.name`, `worker.type` |
+| `worker.consecutive_failures` | Gauge | Number of consecutive failures | `worker.id`, `worker.name`, `worker.type` |
 
 **Worker Types**: `continuous`, `periodic`, `cron`
 
@@ -188,6 +230,7 @@ Each worker execution creates an Activity span with the following tags:
 | Tag | Description | Example |
 |-----|-------------|---------|
 | `worker.id` | Worker identifier | `"1"`, `"2"`, `"3"` |
+| `worker.name` | Worker name (user-provided or generated) | `"order-processor"`, `"worker-1"` |
 | `worker.type` | Type of worker | `"continuous"`, `"periodic"`, `"cron"` |
 | `worker.iteration` | Execution count (continuous only) | `"1"`, `"2"`, `"3"` |
 | `worker.schedule` | Schedule interval (periodic only) | `"00:00:03"` |
@@ -264,13 +307,19 @@ builder.Services.AddOpenTelemetry()
 **Grafana Queries:**
 ```promql
 # Worker execution rate
-rate(minimal_worker_executions_total[5m])
+rate(worker_executions_total[5m])
 
 # Worker error rate
-rate(minimal_worker_errors_total[5m])
+rate(worker_errors_total[5m])
 
 # Worker duration p95
-histogram_quantile(0.95, rate(minimal_worker_duration_bucket[5m]))
+histogram_quantile(0.95, rate(worker_duration_bucket[5m]))
+
+# Active workers count
+sum(worker_active)
+
+# Workers with failures
+worker_consecutive_failures > 0
 ```
 
 #### Azure Application Insights
@@ -325,29 +374,36 @@ builder.Services.AddOpenTelemetry()
 ### 🔬 Example: Monitoring Worker Performance
 
 ```csharp
-// Register a worker
-host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService service) =>
-{
-    await service.ProcessData(); // Automatically traced & metered!
-});
+// Register a named worker for easy identification
+host.RunPeriodicBackgroundWorker(
+    name: "data-processor",
+    TimeSpan.FromSeconds(5),
+    async (MyService service) =>
+    {
+        await service.ProcessData(); // Automatically traced & metered!
+    });
 
 // Query metrics in Prometheus/Grafana:
-// - minimal_worker_executions_total{worker_type="periodic"}
-// - minimal_worker_duration_bucket{worker_type="periodic"}
+// - worker_executions_total{worker_name="data-processor"}
+// - worker_duration_bucket{worker_name="data-processor"}
+// - worker_active{worker_name="data-processor"}
+// - worker_consecutive_failures{worker_name="data-processor"}
 //
 // View traces in Jaeger/Zipkin:
 // - Span name: "worker.execute"
-// - Tags: worker.type=periodic, worker.schedule=00:00:05
+// - Tags: worker.name=data-processor, worker.type=periodic, worker.schedule=00:00:05
 ```
 
 ### 🎓 Best Practices
 
-1. **Always configure OpenTelemetry** in production environments
-2. **Use custom error handlers** for non-fatal errors (they're automatically recorded in traces)
-3. **Monitor error rate metrics** to detect worker failures
-4. **Set up alerts** on `minimal_worker_errors_total` increases
-5. **Use distributed tracing** to debug worker execution failures
-6. **Check duration histograms** to identify performance bottlenecks
+1. **Name your workers** - Use descriptive names for easier identification in logs and metrics
+2. **Always configure OpenTelemetry** in production environments
+3. **Use custom error handlers** for non-fatal errors (they're automatically recorded in traces)
+4. **Monitor error rate metrics** to detect worker failures
+5. **Set up alerts** on `worker_errors_total` or `worker_consecutive_failures > 0`
+6. **Monitor `worker_active`** to detect stopped workers
+7. **Use distributed tracing** to debug worker execution failures
+8. **Check duration histograms** to identify performance bottlenecks
 
 ### 📚 Learn More
 
