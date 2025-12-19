@@ -257,7 +257,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "minimalworker_worker_last_success_time_seconds",
+          "expr": "minimalworker_worker_last_success_time_seconds * 1000",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
