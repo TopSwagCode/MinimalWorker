@@ -9,9 +9,10 @@
       "title": "Worker Executions (Total)",
       "type": "stat",
       "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(worker_executions_total)",
+          "expr": "sum(minimalworker_worker_executions_total)",
           "legendFormat": "Total Executions",
           "refId": "A"
         }
@@ -35,9 +36,10 @@
       "title": "Worker Errors (Total)",
       "type": "stat",
       "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(worker_errors_total) or vector(0)",
+          "expr": "sum(minimalworker_worker_errors_total) or vector(0)",
           "legendFormat": "Total Errors",
           "refId": "A"
         }
@@ -61,9 +63,10 @@
       "title": "Average Worker Duration",
       "type": "stat",
       "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "avg(rate(worker_duration_ms_sum[5m]) / rate(worker_duration_ms_count[5m]))",
+          "expr": "avg(rate(minimalworker_worker_duration_milliseconds_sum[5m]) / rate(minimalworker_worker_duration_milliseconds_count[5m]))",
           "legendFormat": "Avg Duration (ms)",
           "refId": "A"
         }
@@ -88,9 +91,10 @@
       "title": "Active Workers",
       "type": "stat",
       "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(worker_active)",
+          "expr": "sum(minimalworker_worker_active)",
           "legendFormat": "Active",
           "refId": "A"
         }
@@ -111,55 +115,75 @@
     {
       "id": 4,
       "title": "Worker Execution Rate",
-      "type": "graph",
+      "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "rate(worker_executions_total[1m])",
+          "expr": "rate(minimalworker_worker_executions_total[1m])",
           "legendFormat": "{{worker_name}} ({{worker_type}})",
           "refId": "A"
         }
       ],
-      "yaxes": [
-        {"label": "Executions/sec", "show": true},
-        {"show": true}
-      ]
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"}
+      }
     },
     {
       "id": 5,
       "title": "Worker Duration (p50, p95, p99)",
-      "type": "graph",
+      "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(worker_duration_ms_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(worker_duration_ms_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(worker_duration_ms_bucket[5m]))",
+          "expr": "histogram_quantile(0.99, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p99",
           "refId": "C"
         }
       ],
-      "yaxes": [
-        {"label": "Duration (ms)", "show": true},
-        {"show": true}
-      ]
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"}
+      }
     },
     {
       "id": 6,
       "title": "Worker Executions by Name",
       "type": "piechart",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum by (worker_name) (worker_executions_total)",
+          "expr": "sum by (worker_name) (minimalworker_worker_executions_total)",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
@@ -170,9 +194,10 @@
       "title": "Consecutive Failures by Worker",
       "type": "gauge",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "worker_consecutive_failures",
+          "expr": "minimalworker_worker_consecutive_failures",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
@@ -198,12 +223,14 @@
       "title": "Worker Errors by Type",
       "type": "table",
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "worker_errors_total",
+          "expr": "minimalworker_worker_errors_total",
           "legendFormat": "",
           "refId": "A",
-          "format": "table"
+          "format": "table",
+          "instant": true
         }
       ],
       "transformations": [
@@ -223,17 +250,50 @@
       ]
     },
     {
+      "id": 13,
+      "title": "Last Success Time",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "minimalworker_worker_last_success_time_seconds",
+          "legendFormat": "{{worker_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
       "id": 10,
       "title": "Worker Logs",
       "type": "row",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22},
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
       "collapsed": false
     },
     {
       "id": 11,
       "title": "All Worker Logs",
       "type": "logs",
-      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 23},
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 29},
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -260,14 +320,14 @@
       "id": 12,
       "title": "Error Logs Only",
       "type": "logs",
-      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 23},
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 29},
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "expr": "{service_name=\"MinimalWorker.Sample\"} |= \"error\" or {service_name=\"MinimalWorker.Sample\"} |= \"Error\" or {service_name=\"MinimalWorker.Sample\"} |= \"ERROR\" or {service_name=\"MinimalWorker.Sample\"} |= \"fail\"",
+          "expr": "{service_name=\"MinimalWorker.Sample\"} |~ \"(?i)(error|fail|exception)\"",
           "legendFormat": "",
           "refId": "A"
         }
@@ -284,8 +344,18 @@
       }
     }
   ],
-  "schemaVersion": 27,
-  "version": 2,
+  "schemaVersion": 39,
+  "version": 3,
   "refresh": "5s",
-  "editable": true
+  "editable": true,
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  }
 }

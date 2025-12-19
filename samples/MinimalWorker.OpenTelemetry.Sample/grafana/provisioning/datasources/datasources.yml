@@ -4,6 +4,7 @@ datasources:
   # Prometheus - Metrics
   - name: Prometheus
     type: prometheus
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
@@ -14,6 +15,7 @@ datasources:
   # Jaeger - Traces
   - name: Jaeger
     type: jaeger
+    uid: jaeger
     access: proxy
     url: http://jaeger:16686
     editable: true
@@ -26,6 +28,7 @@ datasources:
   # Loki - Logs
   - name: Loki
     type: loki
+    uid: loki
     access: proxy
     url: http://loki:3100
     editable: true
