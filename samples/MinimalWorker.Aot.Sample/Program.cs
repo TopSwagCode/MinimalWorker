@@ -14,7 +14,7 @@ app.RunBackgroundWorker(async (IConsoleOutputService consoleOutputService, Cance
 {
     await consoleOutputService.WriteLineAsync($"[{DateTime.Now:HH:mm:ss}] Continuous worker executing (every second)");
     await Task.Delay(1000, ct);
-});
+}); // Todo - Add .WithName(); or default work.name = "RunBackgroundWorker"
 
 app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (IConsoleOutputService consoleOutputService, CancellationToken ct) =>
 {

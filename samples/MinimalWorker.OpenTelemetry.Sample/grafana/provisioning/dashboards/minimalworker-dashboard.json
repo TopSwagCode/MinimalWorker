@@ -1,0 +1,162 @@
+{
+  "uid": "minimalworker",
+  "title": "MinimalWorker Observability",
+  "tags": ["minimalworker", "background-workers"],
+  "timezone": "browser",
+  "panels": [
+      {
+        "id": 1,
+        "title": "Worker Executions (Total)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(minimalworker_minimal_worker_executions_total)",
+            "legendFormat": "Total Executions",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 100, "color": "orange"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Worker Errors (Total)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(minimalworker_minimal_worker_errors_total) or vector(0)",
+            "legendFormat": "Total Errors",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 1, "color": "orange"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Average Worker Duration",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(minimalworker_minimal_worker_duration_milliseconds_sum[5m]) / rate(minimalworker_minimal_worker_duration_milliseconds_count[5m])",
+            "legendFormat": "Avg Duration (ms)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 100, "color": "yellow"},
+                {"value": 500, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Worker Execution Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(minimalworker_minimal_worker_executions_total[1m])",
+            "legendFormat": "{{worker_type}} - {{worker_id}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Executions/sec", "show": true},
+          {"show": true}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Worker Duration (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(minimalworker_minimal_worker_duration_milliseconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(minimalworker_minimal_worker_duration_milliseconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(minimalworker_minimal_worker_duration_milliseconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"label": "Duration (ms)", "show": true},
+          {"show": true}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Worker Executions by Type",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum by (worker_type) (minimalworker_minimal_worker_executions_total)",
+            "legendFormat": "{{worker_type}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Worker Errors by Type",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "minimalworker_minimal_worker_errors_total or vector(0)",
+            "legendFormat": "",
+            "refId": "A",
+            "format": "table"
+          }
+        ]
+      }
+    ],
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "5s",
+    "editable": true
+}

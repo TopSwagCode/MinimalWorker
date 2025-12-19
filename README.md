@@ -157,7 +157,208 @@ This ensures you catch configuration errors early, before deploying to productio
 - Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.
 
-## 🚀 AOT Compilation Support
+## � Observability & OpenTelemetry
+
+MinimalWorker provides **production-grade observability** out of the box with **zero configuration required**. All workers automatically emit metrics and distributed traces using native .NET APIs (`System.Diagnostics.Activity` and `System.Diagnostics.Metrics`).
+
+### 🎯 What's Automatically Instrumented
+
+**Every worker execution** is automatically instrumented with:
+
+✅ **Distributed Tracing** - Activity spans for each execution  
+✅ **Metrics** - Execution count, error count, and duration histograms  
+✅ **Tags/Dimensions** - Worker ID, type, iteration count, cron expression  
+✅ **Exception Recording** - Full exception details in traces  
+✅ **Zero Breaking Changes** - Works with or without OpenTelemetry configured  
+
+### 📈 Available Metrics
+
+| Metric Name | Type | Description | Dimensions |
+|-------------|------|-------------|------------|
+| `minimal_worker.executions` | Counter | Total worker executions | `worker.id`, `worker.type` |
+| `minimal_worker.errors` | Counter | Total worker errors | `worker.id`, `worker.type`, `error.type` |
+| `minimal_worker.duration` | Histogram | Execution duration (ms) | `worker.id`, `worker.type` |
+
+**Worker Types**: `continuous`, `periodic`, `cron`
+
+### 🔍 Distributed Tracing Tags
+
+Each worker execution creates an Activity span with the following tags:
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `worker.id` | Worker identifier | `"1"`, `"2"`, `"3"` |
+| `worker.type` | Type of worker | `"continuous"`, `"periodic"`, `"cron"` |
+| `worker.iteration` | Execution count (continuous only) | `"1"`, `"2"`, `"3"` |
+| `worker.schedule` | Schedule interval (periodic only) | `"00:00:03"` |
+| `cron.expression` | Cron expression (cron only) | `"*/5 * * * * *"` |
+| `cron.next_run` | Next execution time (cron only) | `"2025-01-15T10:30:00Z"` |
+| `exception.type` | Exception type (on error) | `"System.InvalidOperationException"` |
+| `exception.message` | Exception message (on error) | `"Operation failed"` |
+| `exception.stacktrace` | Full exception details (on error) | Stack trace string |
+
+### 🚀 Quick Start with OpenTelemetry
+
+**1. Install OpenTelemetry packages:**
+
+```bash
+dotnet add package OpenTelemetry.Extensions.Hosting
+dotnet add package OpenTelemetry.Exporter.Console
+```
+
+**2. Configure OpenTelemetry to subscribe to MinimalWorker:**
+
+```csharp
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracerProviderBuilder =>
+    {
+        tracerProviderBuilder
+            .AddSource("MinimalWorker") // ✨ Subscribe to MinimalWorker traces
+            .AddConsoleExporter();
+    })
+    .WithMetrics(meterProviderBuilder =>
+    {
+        meterProviderBuilder
+            .AddMeter("MinimalWorker") // ✨ Subscribe to MinimalWorker metrics
+            .AddConsoleExporter();
+    });
+
+var host = builder.Build();
+
+// Register workers - they're automatically instrumented!
+host.RunBackgroundWorker(async (MyService service) =>
+{
+    await service.DoWork();
+});
+
+await host.RunAsync();
+```
+
+**That's it!** 🎉 Your workers now export traces and metrics.
+
+### 📤 Export to Popular Backends
+
+#### Prometheus + Grafana
+
+```bash
+dotnet add package OpenTelemetry.Exporter.Prometheus.AspNetCore
+```
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(meterProviderBuilder =>
+    {
+        meterProviderBuilder
+            .AddMeter("MinimalWorker")
+            .AddPrometheusExporter(); // Expose /metrics endpoint
+    });
+
+// Metrics available at: http://localhost:9090/metrics
+```
+
+**Grafana Queries:**
+```promql
+# Worker execution rate
+rate(minimal_worker_executions_total[5m])
+
+# Worker error rate
+rate(minimal_worker_errors_total[5m])
+
+# Worker duration p95
+histogram_quantile(0.95, rate(minimal_worker_duration_bucket[5m]))
+```
+
+#### Azure Application Insights
+
+```bash
+dotnet add package Azure.Monitor.OpenTelemetry.Exporter
+```
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracerProviderBuilder =>
+    {
+        tracerProviderBuilder
+            .AddSource("MinimalWorker")
+            .AddAzureMonitorTraceExporter(options =>
+            {
+                options.ConnectionString = "InstrumentationKey=...";
+            });
+    })
+    .WithMetrics(meterProviderBuilder =>
+    {
+        meterProviderBuilder
+            .AddMeter("MinimalWorker")
+            .AddAzureMonitorMetricExporter(options =>
+            {
+                options.ConnectionString = "InstrumentationKey=...";
+            });
+    });
+```
+
+#### OTLP (OpenTelemetry Protocol)
+
+Compatible with Jaeger, Zipkin, Grafana Tempo, and more:
+
+```bash
+dotnet add package OpenTelemetry.Exporter.OpenTelemetryProtocol
+```
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracerProviderBuilder =>
+    {
+        tracerProviderBuilder
+            .AddSource("MinimalWorker")
+            .AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri("http://localhost:4317");
+            });
+    });
+```
+
+### 🔬 Example: Monitoring Worker Performance
+
+```csharp
+// Register a worker
+host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService service) =>
+{
+    await service.ProcessData(); // Automatically traced & metered!
+});
+
+// Query metrics in Prometheus/Grafana:
+// - minimal_worker_executions_total{worker_type="periodic"}
+// - minimal_worker_duration_bucket{worker_type="periodic"}
+//
+// View traces in Jaeger/Zipkin:
+// - Span name: "worker.execute"
+// - Tags: worker.type=periodic, worker.schedule=00:00:05
+```
+
+### 🎓 Best Practices
+
+1. **Always configure OpenTelemetry** in production environments
+2. **Use custom error handlers** for non-fatal errors (they're automatically recorded in traces)
+3. **Monitor error rate metrics** to detect worker failures
+4. **Set up alerts** on `minimal_worker_errors_total` increases
+5. **Use distributed tracing** to debug worker execution failures
+6. **Check duration histograms** to identify performance bottlenecks
+
+### 📚 Learn More
+
+- See [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWorker.OpenTelemetry.Sample) for a complete example
+- Read the [OpenTelemetry .NET documentation](https://opentelemetry.io/docs/languages/net/)
+- Explore [Activity API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity)
+- Explore [Metrics API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics)
+
+---
+
+## �🚀 AOT Compilation Support
 
 MinimalWorker is fully compatible with .NET Native AOT compilation! The library uses source generators instead of reflection, making it perfect for AOT scenarios.
 
