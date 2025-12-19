@@ -318,7 +318,7 @@
     },
     {
       "id": 12,
-      "title": "Error Logs Only",
+      "title": "Error Logs (Detailed)",
       "type": "logs",
       "gridPos": {"h": 10, "w": 12, "x": 12, "y": 29},
       "datasource": {
@@ -327,14 +327,14 @@
       },
       "targets": [
         {
-          "expr": "{service_name=\"MinimalWorker.Sample\"} |~ \"(?i)(error|fail|exception)\"",
+          "expr": "{service_name=\"MinimalWorker.Sample\"} | json | severity=~\"Error|Warning\" | line_format `{{.timestamp}}  [{{.severity}}] {{.attributes_WorkerName}} - {{.body}}{{ if .attributes_exception_type }}\n  Exception: {{.attributes_exception_type}}\n  Message: {{.attributes_exception_message}}{{ end }}`",
           "legendFormat": "",
           "refId": "A"
         }
       ],
       "options": {
-        "showTime": true,
-        "showLabels": true,
+        "showTime": false,
+        "showLabels": false,
         "showCommonLabels": false,
         "wrapLogMessage": true,
         "prettifyLogMessage": false,

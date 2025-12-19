@@ -137,13 +137,13 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
 
         if (willFail)
         {
-            logger.LogWarning("🎲 Flaky worker: Attempting operation that might fail...");
+            logger.LogWarning("Flaky worker: Attempting operation that might fail...");
             await Task.Delay(100); // Small delay before failure
-            throw new InvalidOperationException("🔥 Flaky worker failed! (Simulated random failure)");
+            throw new InvalidOperationException("Flaky worker failed! (Simulated random failure)");
         }
         else
         {
-            logger.LogInformation("🎲 Flaky worker: ✅ Success! Operation completed.");
+            logger.LogInformation("Flaky worker: Success! Operation completed.");
             await Task.Delay(200); // Slightly longer delay for success path
         }
     })
@@ -151,7 +151,6 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
     .OnError((Exception ex) =>
     {
         // Handle errors gracefully - log but don't crash
-        Console.WriteLine($"⚠️  Error in flaky worker (expected): {ex.Message}");
     });
 
 // 💤 Slow worker - Random delays to show performance variance
