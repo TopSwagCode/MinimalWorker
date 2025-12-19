@@ -216,6 +216,8 @@ MinimalWorker provides **production-grade observability** out of the box with **
 
 **Worker Types**: `continuous`, `periodic`, `cron`
 
+📊 **For detailed metrics documentation, usage examples, and PromQL queries, see [METRICS.md](docs/METRICS.md)**
+
 ### 🔍 Distributed Tracing Tags
 
 Each worker execution creates an Activity span with the following tags:

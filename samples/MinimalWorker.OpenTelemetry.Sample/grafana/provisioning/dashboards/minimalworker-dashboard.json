@@ -12,7 +12,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(minimalworker_worker_executions_total)",
+          "expr": "sum(worker_executions_total)",
           "legendFormat": "Total Executions",
           "refId": "A"
         }
@@ -39,7 +39,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(minimalworker_worker_errors_total) or vector(0)",
+          "expr": "sum(worker_errors_total) or vector(0)",
           "legendFormat": "Total Errors",
           "refId": "A"
         }
@@ -66,7 +66,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "avg(rate(minimalworker_worker_duration_milliseconds_sum[5m]) / rate(minimalworker_worker_duration_milliseconds_count[5m]))",
+          "expr": "avg(rate(worker_duration_milliseconds_sum[5m]) / rate(worker_duration_milliseconds_count[5m]))",
           "legendFormat": "Avg Duration (ms)",
           "refId": "A"
         }
@@ -94,7 +94,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum(minimalworker_worker_active)",
+          "expr": "sum(worker_active)",
           "legendFormat": "Active",
           "refId": "A"
         }
@@ -120,7 +120,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "rate(minimalworker_worker_executions_total[1m])",
+          "expr": "rate(worker_executions_total[1m])",
           "legendFormat": "{{worker_name}} ({{worker_type}})",
           "refId": "A"
         }
@@ -146,17 +146,17 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, rate(worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, rate(worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(minimalworker_worker_duration_milliseconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.99, rate(worker_duration_milliseconds_bucket[5m]))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -183,7 +183,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "sum by (worker_name) (minimalworker_worker_executions_total)",
+          "expr": "sum by (worker_name) (worker_executions_total)",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
@@ -197,7 +197,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "minimalworker_worker_consecutive_failures",
+          "expr": "worker_consecutive_failures",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
@@ -226,7 +226,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "minimalworker_worker_errors_total",
+          "expr": "worker_errors_total",
           "legendFormat": "",
           "refId": "A",
           "format": "table",
@@ -257,7 +257,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
-          "expr": "minimalworker_worker_last_success_time_seconds * 1000",
+          "expr": "worker_last_success_time_seconds * 1000",
           "legendFormat": "{{worker_name}}",
           "refId": "A"
         }
