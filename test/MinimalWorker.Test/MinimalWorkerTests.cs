@@ -269,8 +269,7 @@ public class MinimalWorkerTests
             .Build();
 
         var executionCount = 0;
-        host.RunBackgroundWorker(
-            async (CancellationToken token) =>
+        host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 executionCount++;
                 if (executionCount <= 2) // Throw on first 2 executions
@@ -278,8 +277,8 @@ public class MinimalWorkerTests
                     throw new InvalidOperationException(expectedMessage);
                 }
                 await Task.Delay(50, token);
-            },
-            onError: ex =>
+            })
+            .OnError(ex =>
             {
                 exceptionCount++;
                 capturedException = ex;
@@ -337,8 +336,8 @@ public class MinimalWorkerTests
         
         host.RunPeriodicBackgroundWorker(
             TimeSpan.FromMilliseconds(50),
-            () => { throw new InvalidOperationException("Periodic worker error");},
-            onError: ex =>
+            () => { throw new InvalidOperationException("Periodic worker error");})
+            .OnError(ex =>
             {
                 errorWasCalled = true;
             });
@@ -362,15 +361,14 @@ public class MinimalWorkerTests
         using var host = Host.CreateDefaultBuilder()
             .Build();
 
-        host.RunBackgroundWorker(
-            async (CancellationToken token) =>
+        host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 while (!token.IsCancellationRequested)
                 {
                     await Task.Delay(50, token); // This will throw OperationCanceledException on shutdown
                 }
-            },
-            onError: ex =>
+            })
+            .OnError(ex =>
             {
                 errorHandlerCalled = true; // Should NOT be called for OperationCanceledException
             });
@@ -403,8 +401,8 @@ public class MinimalWorkerTests
 
         host.RunPeriodicBackgroundWorker(
             TimeSpan.FromMilliseconds(50),
-            worker,
-            onError: ex => { /* Ignore errors */ });
+            worker)
+            .OnError(ex => { /* Ignore errors */ });
 
         // Act
         await host.StartAsync();
@@ -427,8 +425,7 @@ public class MinimalWorkerTests
             .Build();
 
         var executionCount = 0;
-        host.RunBackgroundWorker(
-            async (CancellationToken token) =>
+        host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 if (executionCount < expectedMessages.Length)
                 {
@@ -437,8 +434,8 @@ public class MinimalWorkerTests
                     throw new InvalidOperationException(message);
                 }
                 await Task.Delay(50, token);
-            },
-            onError: ex =>
+            })
+            .OnError(ex =>
             {
                 errors.Add(ex);
             });
@@ -473,13 +470,12 @@ public class MinimalWorkerTests
             })
             .Build();
 
-        host.RunBackgroundWorker(
-            async (TestDependency counter, CancellationToken token) =>
+        host.RunBackgroundWorker(async (TestDependency counter, CancellationToken token) =>
             {
                 counter.Increment(); // This will throw
                 await Task.Delay(50, token);
-            },
-            onError: ex =>
+            })
+            .OnError(ex =>
             {
                 exceptionCaught = true;
             });
@@ -620,14 +616,13 @@ public class MinimalWorkerTests
             })
             .Build();
 
-        host.RunBackgroundWorker(
-            async (IRepository<string> repo, CancellationToken token) =>
+        host.RunBackgroundWorker(async (IRepository<string> repo, CancellationToken token) =>
             {
                 var item = await repo.GetAsync();
                 processedItems.Add(item);
                 await Task.Delay(50, token);
-            },
-            onError: ex =>
+            })
+            .OnError(ex =>
             {
                 workerException = ex;
             });

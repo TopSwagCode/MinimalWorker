@@ -4,6 +4,52 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 /// <summary>
+/// Fluent builder interface for configuring background workers.
+/// </summary>
+public interface IWorkerBuilder
+{
+    /// <summary>
+    /// Sets a name for the worker. Used in logs, metrics, and traces for easier identification.
+    /// </summary>
+    /// <param name="name">The name to assign to the worker.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    IWorkerBuilder WithName(string name);
+
+    /// <summary>
+    /// Sets an error handler for unhandled exceptions in the worker.
+    /// If not provided, exceptions will cause the application to terminate.
+    /// </summary>
+    /// <param name="handler">The error handler delegate.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    IWorkerBuilder OnError(Action<Exception> handler);
+}
+
+/// <summary>
+/// Internal implementation of the worker builder.
+/// </summary>
+internal class WorkerBuilder : IWorkerBuilder
+{
+    private readonly BackgroundWorkerExtensions.WorkerRegistration _registration;
+
+    internal WorkerBuilder(BackgroundWorkerExtensions.WorkerRegistration registration)
+    {
+        _registration = registration;
+    }
+
+    public IWorkerBuilder WithName(string name)
+    {
+        _registration.Name = name;
+        return this;
+    }
+
+    public IWorkerBuilder OnError(Action<Exception> handler)
+    {
+        _registration.OnError = handler;
+        return this;
+    }
+}
+
+/// <summary>
 /// Extension methods for registering background workers with source generator-based code generation.
 /// No reflection - fully AOT compatible.
 /// </summary>
@@ -147,73 +193,12 @@ public static class BackgroundWorkerExtensions
     /// Maps a background worker that continuously executes the specified delegate while the application is running.
     /// </summary>
     /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
-    /// <param name="name">
-    /// Optional name for the worker. Used in logs, metrics, and traces for easier identification.
-    /// If not provided, a name will be generated (e.g., "worker-1").
-    /// </param>
     /// <param name="action">
     /// A delegate representing the work to be executed.
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
-    /// <remarks>
-    /// The worker will start when the application starts and run in a continuous loop until shutdown.
-    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
-    /// </remarks>
-    /// <example>
-    /// Example usage:
-    /// <code>
-    /// host.RunBackgroundWorker(
-    ///     name: "order-processor",
-    ///     async (CancellationToken token) =>
-    ///     {
-    ///         while (!token.IsCancellationRequested)
-    ///         {
-    ///             Console.WriteLine("Running background task...");
-    ///             await Task.Delay(1000, token);
-    ///         }
-    ///     });
-    /// </code>
-    /// </example>
-    public static void RunBackgroundWorker(this IHost host, string? name, Delegate action, Action<Exception>? onError = null)
-    {
-        var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
-        var parameters = action.Method.GetParameters();
-        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
-
-        var registration = new WorkerRegistration
-        {
-            Id = id,
-            Name = name,
-            Action = action,
-            Type = WorkerType.Continuous,
-            Host = host,
-            ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Continuous}:{signature}",
-            OnError = onError
-        };
-
-        _registrations.Add(registration);
-        EnsureInitialized(host);
-    }
-
-    /// <summary>
-    /// Maps a background worker that continuously executes the specified delegate while the application is running.
-    /// </summary>
-    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
-    /// <param name="action">
-    /// A delegate representing the work to be executed.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
-    /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
+    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
     /// <remarks>
     /// The worker will start when the application starts and run in a continuous loop until shutdown.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -228,50 +213,10 @@ public static class BackgroundWorkerExtensions
     ///         Console.WriteLine("Running background task...");
     ///         await Task.Delay(1000, token);
     ///     }
-    /// });
+    /// }).WithName("order-processor").OnError(ex => Console.WriteLine(ex));
     /// </code>
     /// </example>
-    public static void RunBackgroundWorker(this IHost host, Delegate action, Action<Exception>? onError = null)
-    {
-        RunBackgroundWorker(host, name: null, action, onError);
-    }
-    
-    /// <summary>
-    /// Maps a periodic background worker that executes the specified delegate at a fixed time interval.
-    /// </summary>
-    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
-    /// <param name="name">
-    /// Optional name for the worker. Used in logs, metrics, and traces for easier identification.
-    /// If not provided, a name will be generated (e.g., "worker-1").
-    /// </param>
-    /// <param name="timespan">The <see cref="TimeSpan"/> interval between executions.</param>
-    /// <param name="action">
-    /// A delegate representing the work to be executed periodically.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
-    /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
-    /// <remarks>
-    /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
-    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
-    /// </remarks>
-    /// <example>
-    /// Example usage:
-    /// <code>
-    /// host.RunPeriodicBackgroundWorker(
-    ///     name: "cache-cleanup",
-    ///     TimeSpan.FromMinutes(5),
-    ///     async (CancellationToken token) =>
-    ///     {
-    ///         Console.WriteLine("Running periodic task every 5 minutes...");
-    ///         await Task.CompletedTask;
-    ///     });
-    /// </code>
-    /// </example>
-    public static void RunPeriodicBackgroundWorker(this IHost host, string? name, TimeSpan timespan, Delegate action, Action<Exception>? onError = null)
+    public static IWorkerBuilder RunBackgroundWorker(this IHost host, Delegate action)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
@@ -280,20 +225,21 @@ public static class BackgroundWorkerExtensions
         var registration = new WorkerRegistration
         {
             Id = id,
-            Name = name,
+            Name = null,
             Action = action,
-            Type = WorkerType.Periodic,
-            Schedule = timespan,
+            Type = WorkerType.Continuous,
             Host = host,
             ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Periodic}:{signature}",
-            OnError = onError
+            Signature = $"{WorkerType.Continuous}:{signature}",
+            OnError = null
         };
 
         _registrations.Add(registration);
         EnsureInitialized(host);
-    }
 
+        return new WorkerBuilder(registration);
+    }
+    
     /// <summary>
     /// Maps a periodic background worker that executes the specified delegate at a fixed time interval.
     /// </summary>
@@ -304,10 +250,7 @@ public static class BackgroundWorkerExtensions
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
+    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
     /// <remarks>
     /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -319,53 +262,10 @@ public static class BackgroundWorkerExtensions
     /// {
     ///     Console.WriteLine("Running periodic task every 5 minutes...");
     ///     await Task.CompletedTask;
-    /// });
+    /// }).WithName("cache-cleanup");
     /// </code>
     /// </example>
-    public static void RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action, Action<Exception>? onError = null)
-    {
-        RunPeriodicBackgroundWorker(host, name: null, timespan, action, onError);
-    }
-
-    /// <summary>
-    /// Maps a cron-scheduled background worker that executes the specified delegate according to a cron expression.
-    /// </summary>
-    /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
-    /// <param name="name">
-    /// Optional name for the worker. Used in logs, metrics, and traces for easier identification.
-    /// If not provided, a name will be generated (e.g., "worker-1").
-    /// </param>
-    /// <param name="cronExpression">
-    /// A cron expression string defining the schedule.
-    /// Uses the standard cron format (minute, hour, day of month, month, day of week).
-    /// </param>
-    /// <param name="action">
-    /// A delegate representing the work to be executed on the scheduled times.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
-    /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
-    /// <remarks>
-    /// The worker schedules the execution based on the next occurrence derived from the cron expression.
-    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
-    /// </remarks>
-    /// <example>
-    /// Example usage:
-    /// <code>
-    /// host.RunCronBackgroundWorker(
-    ///     name: "nightly-report",
-    ///     "0 2 * * *",
-    ///     async (CancellationToken token) =>
-    ///     {
-    ///         Console.WriteLine("Running nightly report at 2 AM...");
-    ///         await Task.CompletedTask;
-    ///     });
-    /// </code>
-    /// </example>
-    public static void RunCronBackgroundWorker(this IHost host, string? name, string cronExpression, Delegate action, Action<Exception>? onError = null)
+    public static IWorkerBuilder RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
@@ -374,18 +274,20 @@ public static class BackgroundWorkerExtensions
         var registration = new WorkerRegistration
         {
             Id = id,
-            Name = name,
+            Name = null,
             Action = action,
-            Type = WorkerType.Cron,
-            Schedule = cronExpression,
+            Type = WorkerType.Periodic,
+            Schedule = timespan,
             Host = host,
             ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Cron}:{signature}",
-            OnError = onError
+            Signature = $"{WorkerType.Periodic}:{signature}",
+            OnError = null
         };
 
         _registrations.Add(registration);
         EnsureInitialized(host);
+
+        return new WorkerBuilder(registration);
     }
 
     /// <summary>
@@ -401,10 +303,7 @@ public static class BackgroundWorkerExtensions
     /// It can return a <see cref="Task"/> for asynchronous work.
     /// Dependency injection is supported for method parameters.
     /// </param>
-    /// <param name="onError">
-    /// Optional error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will be rethrown and may crash the worker.
-    /// </param>
+    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
     /// <remarks>
     /// The worker schedules the execution based on the next occurrence derived from the cron expression.
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
@@ -416,12 +315,32 @@ public static class BackgroundWorkerExtensions
     /// {
     ///     Console.WriteLine("Running cron task every 15 minutes...");
     ///     await Task.CompletedTask;
-    /// });
+    /// }).WithName("nightly-report");
     /// </code>
     /// </example>
-    public static void RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action, Action<Exception>? onError = null)
+    public static IWorkerBuilder RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
     {
-        RunCronBackgroundWorker(host, name: null, cronExpression, action, onError);
+        var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
+        var parameters = action.Method.GetParameters();
+        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+
+        var registration = new WorkerRegistration
+        {
+            Id = id,
+            Name = null,
+            Action = action,
+            Type = WorkerType.Cron,
+            Schedule = cronExpression,
+            Host = host,
+            ParameterCount = parameters.Length,
+            Signature = $"{WorkerType.Cron}:{signature}",
+            OnError = null
+        };
+
+        _registrations.Add(registration);
+        EnsureInitialized(host);
+
+        return new WorkerBuilder(registration);
     }
 
     /// <summary>

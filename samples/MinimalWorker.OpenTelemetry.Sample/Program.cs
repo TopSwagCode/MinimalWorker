@@ -114,25 +114,23 @@ host.RunBackgroundWorker(async (IMessageService messageService, ILogger<Program>
 {
     logger.LogInformation("🔄 Continuous worker executing: {Message}", messageService.GetMessage());
     await Task.Delay(500); // Simulate work (faster for demo)
-});
+}).WithName("message-processor");
 
 host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (CounterService counter, ILogger<Program> logger) =>
 {
     counter.Increment();
     logger.LogInformation("⏰ Periodic worker executing. Count: {Count}", counter.Count);
     await Task.CompletedTask;
-});
+}).WithName("counter-worker");
 
 host.RunCronBackgroundWorker("*/1 * * * *", async (ILogger<Program> logger) =>
 {
     logger.LogInformation("📅 Cron worker executing at: {Time:HH:mm:ss}", DateTime.Now);
     await Task.CompletedTask;
-});
+}).WithName("cron-reporter");
 
 // 🎲 Flaky worker - 50/50 chance of success/failure
-host.RunPeriodicBackgroundWorker(
-    TimeSpan.FromSeconds(3),
-    async (ILogger<Program> logger) =>
+host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program> logger) =>
     {
         var random = new Random();
         var willFail = random.Next(2) == 0; // 50% chance
@@ -148,26 +146,26 @@ host.RunPeriodicBackgroundWorker(
             logger.LogInformation("🎲 Flaky worker: ✅ Success! Operation completed.");
             await Task.Delay(200); // Slightly longer delay for success path
         }
-    },
-    onError: (Exception ex) =>
+    })
+    .WithName("flaky-worker")
+    .OnError((Exception ex) =>
     {
         // Handle errors gracefully - log but don't crash
         Console.WriteLine($"⚠️  Error in flaky worker (expected): {ex.Message}");
-    }
-);
+    });
 
 // 💤 Slow worker - Random delays to show performance variance
 host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (ILogger<Program> logger) =>
 {
     var random = new Random();
     var delayMs = random.Next(1000, 3000); // Random delay between 1-3 seconds
-    
+
     logger.LogInformation("💤 Slow worker: Starting operation (will take ~{DelayMs}ms)...", delayMs);
-    
+
     await Task.Delay(delayMs); // Simulate slow operation
-    
+
     logger.LogInformation("💤 Slow worker: ✅ Completed after {DelayMs}ms", delayMs);
-});
+}).WithName("slow-worker");
 
 // Run indefinitely (or until Ctrl+C)
 await host.RunAsync();

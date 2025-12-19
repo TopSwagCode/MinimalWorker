@@ -70,36 +70,33 @@ app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
 });
 ```
 
-### Named Workers
+### Fluent Configuration with Builder Pattern
 
-All worker methods support an optional `name` parameter for easier identification in logs, metrics, and traces:
+All worker methods return an `IWorkerBuilder` for fluent configuration of names and error handlers:
 
 ```csharp
-// Named continuous worker
-app.RunBackgroundWorker(
-    name: "order-processor",
-    async (OrderService service, CancellationToken token) =>
-    {
-        await service.ProcessOrders();
-    });
+// Named continuous worker with error handling
+app.RunBackgroundWorker(async (OrderService service, CancellationToken token) =>
+{
+    await service.ProcessOrders();
+})
+.WithName("order-processor")
+.OnError(ex => Console.WriteLine($"Order processing failed: {ex.Message}"));
 
 // Named periodic worker
-app.RunPeriodicBackgroundWorker(
-    name: "cache-cleanup",
-    TimeSpan.FromMinutes(30),
-    async (CacheService cache) =>
-    {
-        await cache.Cleanup();
-    });
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(30), async (CacheService cache) =>
+{
+    await cache.Cleanup();
+})
+.WithName("cache-cleanup");
 
-// Named cron worker
-app.RunCronBackgroundWorker(
-    name: "nightly-report",
-    "0 2 * * *",
-    async (ReportService reports) =>
-    {
-        await reports.GenerateDailyReport();
-    });
+// Named cron worker with error handling
+app.RunCronBackgroundWorker("0 2 * * *", async (ReportService reports) =>
+{
+    await reports.GenerateDailyReport();
+})
+.WithName("nightly-report")
+.OnError(ex => logger.LogError(ex, "Nightly report failed"));
 ```
 
 Worker names appear in:
@@ -115,47 +112,43 @@ Workers are automatically initialized and started when the application starts - 
 
 ### Error Handling
 
-All worker methods accept an optional `onError` callback for handling exceptions:
+Use the `.OnError()` builder method for handling exceptions:
 
 ```csharp
-app.RunBackgroundWorker(
-    async (MyService service, CancellationToken token) =>
-    {
-        await service.DoRiskyWork();
-    },
-    onError: ex =>
-    {
-        // Custom error handling - log, alert, etc.
-        Console.WriteLine($"Worker error: {ex.Message}");
-        // Worker continues running after error
-    }
-);
+app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
+{
+    await service.DoRiskyWork();
+})
+.OnError(ex =>
+{
+    // Custom error handling - log, alert, etc.
+    Console.WriteLine($"Worker error: {ex.Message}");
+    // Worker continues running after error
+});
 ```
 
-**Important**: 
-- If `onError` is **not provided**, exceptions are **rethrown** and may crash the worker
-- If `onError` **is provided**, the exception is passed to your handler and the worker continues
+**Important**:
+- If `.OnError()` is **not provided**, exceptions are **rethrown** and may crash the worker
+- If `.OnError()` **is provided**, the exception is passed to your handler and the worker continues
 - `OperationCanceledException` is always handled gracefully during shutdown
 
 #### Using Dependency Injection in Error Handlers
 
-The `onError` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
+The `.OnError()` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
 
 ```csharp
 // Capture logger at startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-app.RunBackgroundWorker(
-    async (CancellationToken token) =>
-    {
-        await DoWork();
-    },
-    onError: ex =>
-    {
-        logger.LogError(ex, "Worker failed");
-        // Use the captured logger
-    }
-);
+app.RunBackgroundWorker(async (CancellationToken token) =>
+{
+    await DoWork();
+})
+.OnError(ex =>
+{
+    logger.LogError(ex, "Worker failed");
+    // Use the captured logger
+});
 ```
 
 **Note**: This captures singleton services. For scoped services, this approach has limitations. Native DI support for error handlers is being considered for a future release.
@@ -375,13 +368,10 @@ builder.Services.AddOpenTelemetry()
 
 ```csharp
 // Register a named worker for easy identification
-host.RunPeriodicBackgroundWorker(
-    name: "data-processor",
-    TimeSpan.FromSeconds(5),
-    async (MyService service) =>
-    {
-        await service.ProcessData(); // Automatically traced & metered!
-    });
+host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService service) =>
+{
+    await service.ProcessData(); // Automatically traced & metered!
+}).WithName("data-processor");
 
 // Query metrics in Prometheus/Grafana:
 // - worker_executions_total{worker_name="data-processor"}
