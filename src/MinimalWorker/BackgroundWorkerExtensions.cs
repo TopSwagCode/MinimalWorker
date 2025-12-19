@@ -21,7 +21,7 @@ public interface IWorkerBuilder
     /// </summary>
     /// <param name="handler">The error handler delegate.</param>
     /// <returns>The builder instance for method chaining.</returns>
-    IWorkerBuilder OnError(Action<Exception> handler);
+    IWorkerBuilder WithErrorHandler(Action<Exception> handler);
 }
 
 /// <summary>
@@ -42,7 +42,7 @@ internal class WorkerBuilder : IWorkerBuilder
         return this;
     }
 
-    public IWorkerBuilder OnError(Action<Exception> handler)
+    public IWorkerBuilder WithErrorHandler(Action<Exception> handler)
     {
         _registration.OnError = handler;
         return this;

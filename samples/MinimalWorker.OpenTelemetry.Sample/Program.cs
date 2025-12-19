@@ -84,31 +84,6 @@ builder.Services.AddSingleton<CounterService>();
 
 var host = builder.Build();
 
-Console.WriteLine("╔════════════════════════════════════════════════════════════════╗");
-Console.WriteLine("║      MinimalWorker with Full OpenTelemetry Stack Sample       ║");
-Console.WriteLine("╚════════════════════════════════════════════════════════════════╝");
-Console.WriteLine();
-Console.WriteLine("📊 Observability Stack:");
-Console.WriteLine("  • Logs:    Console + OTLP → Loki (via Collector)");
-Console.WriteLine("  • Traces:  Console + OTLP → Jaeger (http://localhost:16686)");
-Console.WriteLine("  • Metrics: Console + OTLP → Prometheus (http://localhost:9090)");
-Console.WriteLine();
-Console.WriteLine("🎯 Dashboards:");
-Console.WriteLine("  • Jaeger UI:     http://localhost:16686");
-Console.WriteLine("  • Prometheus:    http://localhost:9090");
-Console.WriteLine("  • Grafana:       http://localhost:3000 (admin/admin)");
-Console.WriteLine();
-Console.WriteLine("🔧 Workers Running:");
-Console.WriteLine("  • Continuous worker (500ms delay - ~2 executions/sec)");
-Console.WriteLine("  • Periodic worker (every 2s)");
-Console.WriteLine("  • Cron worker (every minute)");
-Console.WriteLine("  • 🎲 Flaky worker (50/50 success/fail - every 3s)");
-Console.WriteLine("  • 💤 Slow worker (random delays 1-3s - every 5s)");
-Console.WriteLine();
-Console.WriteLine("Press Ctrl+C to stop...");
-Console.WriteLine("─────────────────────────────────────────────────────────────────");
-Console.WriteLine();
-
 // Register background workers using IHost
 host.RunBackgroundWorker(async (IMessageService messageService, ILogger<Program> logger) =>
 {
@@ -148,7 +123,7 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
         }
     })
     .WithName("flaky-worker")
-    .OnError((Exception ex) =>
+    .WithErrorHandler((Exception ex) =>
     {
         // Handle errors gracefully - log but don't crash
     });

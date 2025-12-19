@@ -278,7 +278,7 @@ public class MinimalWorkerTests
                 }
                 await Task.Delay(50, token);
             })
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 exceptionCount++;
                 capturedException = ex;
@@ -337,7 +337,7 @@ public class MinimalWorkerTests
         host.RunPeriodicBackgroundWorker(
             TimeSpan.FromMilliseconds(50),
             () => { throw new InvalidOperationException("Periodic worker error");})
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 errorWasCalled = true;
             });
@@ -368,7 +368,7 @@ public class MinimalWorkerTests
                     await Task.Delay(50, token); // This will throw OperationCanceledException on shutdown
                 }
             })
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true; // Should NOT be called for OperationCanceledException
             });
@@ -402,7 +402,7 @@ public class MinimalWorkerTests
         host.RunPeriodicBackgroundWorker(
             TimeSpan.FromMilliseconds(50),
             worker)
-            .OnError(ex => { /* Ignore errors */ });
+            .WithErrorHandler(ex => { /* Ignore errors */ });
 
         // Act
         await host.StartAsync();
@@ -435,7 +435,7 @@ public class MinimalWorkerTests
                 }
                 await Task.Delay(50, token);
             })
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 errors.Add(ex);
             });
@@ -475,7 +475,7 @@ public class MinimalWorkerTests
                 counter.Increment(); // This will throw
                 await Task.Delay(50, token);
             })
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 exceptionCaught = true;
             });
@@ -622,7 +622,7 @@ public class MinimalWorkerTests
                 processedItems.Add(item);
                 await Task.Delay(50, token);
             })
-            .OnError(ex =>
+            .WithErrorHandler(ex =>
             {
                 workerException = ex;
             });
