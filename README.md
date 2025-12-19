@@ -128,7 +128,7 @@ app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 ```
 
 **Important**:
-- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and may crash the worker
+- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and will stop all the worker
 - If `.WithErrorHandler()` **is provided**, the exception is passed to your handler and the worker continues
 - `OperationCanceledException` is always handled gracefully during shutdown
 
@@ -203,20 +203,7 @@ MinimalWorker provides **production-grade observability** out of the box with **
 ✅ **Exception Recording** - Full exception details in traces  
 ✅ **Zero Breaking Changes** - Works with or without OpenTelemetry configured  
 
-### 📈 Available Metrics
-
-| Metric Name | Type | Description | Dimensions |
-|-------------|------|-------------|------------|
-| `worker.executions` | Counter | Total worker executions | `worker.id`, `worker.name`, `worker.type` |
-| `worker.errors` | Counter | Total worker errors | `worker.id`, `worker.name`, `worker.type`, `exception.type` |
-| `worker.duration` | Histogram | Execution duration (ms) | `worker.id`, `worker.name`, `worker.type` |
-| `worker.active` | Gauge | Active workers (1=running, 0=stopped) | `worker.id`, `worker.name`, `worker.type` |
-| `worker.last_success_time` | Gauge | Unix timestamp of last successful execution | `worker.id`, `worker.name`, `worker.type` |
-| `worker.consecutive_failures` | Gauge | Number of consecutive failures | `worker.id`, `worker.name`, `worker.type` |
-
-**Worker Types**: `continuous`, `periodic`, `cron`
-
-📊 **For detailed metrics documentation, usage examples, and PromQL queries, see [METRICS.md](docs/METRICS.md)**
+📊 **For detailed metrics documentation see [METRICS.md](docs/METRICS.md)**
 
 ### 🔍 Distributed Tracing Tags
 
@@ -378,7 +365,7 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService servi
 
 ---
 
-## �🚀 AOT Compilation Support
+## 🚀 AOT Compilation Support
 
 MinimalWorker is fully compatible with .NET Native AOT compilation! The library uses source generators instead of reflection, making it perfect for AOT scenarios.
 
