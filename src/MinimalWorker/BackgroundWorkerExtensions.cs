@@ -70,6 +70,11 @@ public static class BackgroundWorkerExtensions
     internal static bool _useEnvironmentExit = true;
 
     /// <summary>
+    /// Stores the host application lifetime for graceful shutdown.
+    /// </summary>
+    private static IHostApplicationLifetime? _lifetime;
+
+    /// <summary>
     /// Internal method to terminate the application on fatal worker errors.
     /// Can be controlled via _useEnvironmentExit for testing purposes.
     /// </summary>
@@ -77,7 +82,8 @@ public static class BackgroundWorkerExtensions
     {
         if (_useEnvironmentExit)
         {
-            Environment.Exit(1);
+            Environment.ExitCode = 1;
+            _lifetime?.StopApplication();
         }
         else
         {
@@ -96,6 +102,7 @@ public static class BackgroundWorkerExtensions
             _registrationCounter = 0;
             _isInitialized = false;
             _useEnvironmentExit = true; // Reset to default
+            _lifetime = null; // Reset lifetime reference
         }
     }
 
@@ -161,6 +168,7 @@ public static class BackgroundWorkerExtensions
             _isInitialized = true;
 
             var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+            _lifetime = lifetime;
             lifetime.ApplicationStarted.Register(() =>
             {
                 try
@@ -174,11 +182,12 @@ public static class BackgroundWorkerExtensions
                     Console.Error.WriteLine($"FATAL: Worker dependency validation failed: {ex.Message}");
                     Console.Error.WriteLine(ex.StackTrace);
                     
-                    // In production, exit immediately with error code
+                    // In production, trigger graceful shutdown with error code
                     // In tests, throw to allow test frameworks to handle it
                     if (_useEnvironmentExit)
                     {
-                        Environment.Exit(1);
+                        Environment.ExitCode = 1;
+                        lifetime.StopApplication();
                     }
                     else
                     {

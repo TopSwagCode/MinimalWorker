@@ -81,7 +81,7 @@ app.RunBackgroundWorker(async (OrderService service, CancellationToken token) =>
     await service.ProcessOrders();
 })
 .WithName("order-processor")
-.OnError(ex => Console.WriteLine($"Order processing failed: {ex.Message}"));
+.WithErrorHandler(ex => Console.WriteLine($"Order processing failed: {ex.Message}"));
 
 // Named periodic worker
 app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(30), async (CacheService cache) =>
@@ -96,7 +96,7 @@ app.RunCronBackgroundWorker("0 2 * * *", async (ReportService reports) =>
     await reports.GenerateDailyReport();
 })
 .WithName("nightly-report")
-.OnError(ex => logger.LogError(ex, "Nightly report failed"));
+.WithErrorHandler(ex => logger.LogError(ex, "Nightly report failed"));
 ```
 
 Worker names appear in:
@@ -112,14 +112,14 @@ Workers are automatically initialized and started when the application starts - 
 
 ### Error Handling
 
-Use the `.OnError()` builder method for handling exceptions:
+Use the `.WithErrorHandler()` builder method for handling exceptions:
 
 ```csharp
 app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 {
     await service.DoRiskyWork();
 })
-.OnError(ex =>
+.WithErrorHandler(ex =>
 {
     // Custom error handling - log, alert, etc.
     Console.WriteLine($"Worker error: {ex.Message}");
@@ -128,13 +128,13 @@ app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 ```
 
 **Important**:
-- If `.OnError()` is **not provided**, exceptions are **rethrown** and may crash the worker
-- If `.OnError()` **is provided**, the exception is passed to your handler and the worker continues
+- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and may crash the worker
+- If `.WithErrorHandler()` **is provided**, the exception is passed to your handler and the worker continues
 - `OperationCanceledException` is always handled gracefully during shutdown
 
 #### Using Dependency Injection in Error Handlers
 
-The `.OnError()` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
+The `.WithErrorHandler()` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
 
 ```csharp
 // Capture logger at startup
@@ -144,7 +144,7 @@ app.RunBackgroundWorker(async (CancellationToken token) =>
 {
     await DoWork();
 })
-.OnError(ex =>
+.WithErrorHandler(ex =>
 {
     logger.LogError(ex, "Worker failed");
     // Use the captured logger
@@ -189,7 +189,7 @@ This ensures you catch configuration errors early, before deploying to productio
 - Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.
 
-## � Observability & OpenTelemetry
+## 📡 Observability & OpenTelemetry
 
 MinimalWorker provides **production-grade observability** out of the box with **zero configuration required**. All workers automatically emit metrics and distributed traces using native .NET APIs (`System.Diagnostics.Activity` and `System.Diagnostics.Metrics`).
 
@@ -297,24 +297,6 @@ builder.Services.AddOpenTelemetry()
 // Metrics available at: http://localhost:9090/metrics
 ```
 
-**Grafana Queries:**
-```promql
-# Worker execution rate
-rate(worker_executions_total[5m])
-
-# Worker error rate
-rate(worker_errors_total[5m])
-
-# Worker duration p95
-histogram_quantile(0.95, rate(worker_duration_bucket[5m]))
-
-# Active workers count
-sum(worker_active)
-
-# Workers with failures
-worker_consecutive_failures > 0
-```
-
 #### Azure Application Insights
 
 ```bash
@@ -372,16 +354,6 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService servi
 {
     await service.ProcessData(); // Automatically traced & metered!
 }).WithName("data-processor");
-
-// Query metrics in Prometheus/Grafana:
-// - worker_executions_total{worker_name="data-processor"}
-// - worker_duration_bucket{worker_name="data-processor"}
-// - worker_active{worker_name="data-processor"}
-// - worker_consecutive_failures{worker_name="data-processor"}
-//
-// View traces in Jaeger/Zipkin:
-// - Span name: "worker.execute"
-// - Tags: worker.name=data-processor, worker.type=periodic, worker.schedule=00:00:05
 ```
 
 ### 🎓 Best Practices
