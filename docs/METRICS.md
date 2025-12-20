@@ -2,6 +2,8 @@
 
 ## Core Metrics
 
+![Prometheus overview](/docs/image.png)
+
 ### Worker Execution Metrics
 
 #### `worker.executions`
@@ -47,8 +49,11 @@
 # Error rate per worker
 rate(worker_errors_total[5m])
 
-# Error percentage
-(rate(worker_errors_total[5m]) / rate(worker_executions_total[5m])) * 100
+# Error percentage total
+100 * sum(rate(worker_errors_total[5m])) / sum(rate(worker_executions_total[5m]))
+
+# Error percentage per worker
+100 * (sum by (worker_name) (rate(worker_errors_total[5m])) / clamp_min(sum by (worker_name) (rate(worker_executions_total[5m])), 1)) OR on(worker_name) 0 * sum by (worker_name) (rate(worker_executions_total[5m]))
 
 # Errors by exception type
 sum by (exception_type) (worker_errors_total)
@@ -262,5 +267,3 @@ MinimalWorker follows **OpenTelemetry Semantic Conventions** for metric naming:
 The OpenTelemetry Collector or Prometheus exporter may add a namespace prefix. For example:
 - Collector config: `namespace: "minimalworker"` → `minimalworker_worker_executions_total`
 - No namespace → `worker_executions_total`
-
-**Recommendation**: Avoid namespace prefixes in the collector config since the Meter name (`"MinimalWorker"`) already provides sufficient scoping.
