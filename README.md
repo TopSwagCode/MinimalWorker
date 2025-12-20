@@ -19,6 +19,7 @@
 - 🔄 Built-in support for `CancellationToken`
 - 🧪 Works seamlessly with dependency injection (`IServiceProvider`)
 - 🧼 Minimal and clean API
+- 📈 Built-in telemetry with automatic metrics and distributed tracing
 - 🏎️ AOT Compilation Support
 
 ---
@@ -112,7 +113,7 @@ Workers are automatically initialized and started when the application starts - 
 
 ### Error Handling
 
-Use the `.WithErrorHandler()` builder method for handling exceptions:
+You can handle errors as part of you Run Worker, with eg. `try / catch` or you can use the `.WithErrorHandler()` builder method for handling exceptions:
 
 ```csharp
 app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
@@ -128,7 +129,7 @@ app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 ```
 
 **Important**:
-- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and will stop all the worker
+- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and will stop all the workers
 - If `.WithErrorHandler()` **is provided**, the exception is passed to your handler and the worker continues
 - `OperationCanceledException` is always handled gracefully during shutdown
 
@@ -205,163 +206,24 @@ MinimalWorker provides **production-grade observability** out of the box with **
 
 📊 **For detailed metrics documentation see [METRICS.md](docs/METRICS.md)**
 
-### 🔍 Distributed Tracing Tags
+### 📚 Learn More and example
 
-Each worker execution creates an Activity span with the following tags:
-
-| Tag | Description | Example |
-|-----|-------------|---------|
-| `worker.id` | Worker identifier | `"1"`, `"2"`, `"3"` |
-| `worker.name` | Worker name (user-provided or generated) | `"order-processor"`, `"worker-1"` |
-| `worker.type` | Type of worker | `"continuous"`, `"periodic"`, `"cron"` |
-| `worker.iteration` | Execution count (continuous only) | `"1"`, `"2"`, `"3"` |
-| `worker.schedule` | Schedule interval (periodic only) | `"00:00:03"` |
-| `cron.expression` | Cron expression (cron only) | `"*/5 * * * * *"` |
-| `cron.next_run` | Next execution time (cron only) | `"2025-01-15T10:30:00Z"` |
-| `exception.type` | Exception type (on error) | `"System.InvalidOperationException"` |
-| `exception.message` | Exception message (on error) | `"Operation failed"` |
-| `exception.stacktrace` | Full exception details (on error) | Stack trace string |
-
-### 🚀 Quick Start with OpenTelemetry
-
-**1. Install OpenTelemetry packages:**
-
-```bash
-dotnet add package OpenTelemetry.Extensions.Hosting
-dotnet add package OpenTelemetry.Exporter.Console
-```
-
-**2. Configure OpenTelemetry to subscribe to MinimalWorker:**
-
-```csharp
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
-
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracerProviderBuilder =>
-    {
-        tracerProviderBuilder
-            .AddSource("MinimalWorker") // ✨ Subscribe to MinimalWorker traces
-            .AddConsoleExporter();
-    })
-    .WithMetrics(meterProviderBuilder =>
-    {
-        meterProviderBuilder
-            .AddMeter("MinimalWorker") // ✨ Subscribe to MinimalWorker metrics
-            .AddConsoleExporter();
-    });
-
-var host = builder.Build();
-
-// Register workers - they're automatically instrumented!
-host.RunBackgroundWorker(async (MyService service) =>
-{
-    await service.DoWork();
-});
-
-await host.RunAsync();
-```
-
-**That's it!** 🎉 Your workers now export traces and metrics.
-
-### 📤 Export to Popular Backends
-
-#### Prometheus + Grafana
-
-```bash
-dotnet add package OpenTelemetry.Exporter.Prometheus.AspNetCore
-```
-
-```csharp
-builder.Services.AddOpenTelemetry()
-    .WithMetrics(meterProviderBuilder =>
-    {
-        meterProviderBuilder
-            .AddMeter("MinimalWorker")
-            .AddPrometheusExporter(); // Expose /metrics endpoint
-    });
-
-// Metrics available at: http://localhost:9090/metrics
-```
-
-#### Azure Application Insights
-
-```bash
-dotnet add package Azure.Monitor.OpenTelemetry.Exporter
-```
-
-```csharp
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracerProviderBuilder =>
-    {
-        tracerProviderBuilder
-            .AddSource("MinimalWorker")
-            .AddAzureMonitorTraceExporter(options =>
-            {
-                options.ConnectionString = "InstrumentationKey=...";
-            });
-    })
-    .WithMetrics(meterProviderBuilder =>
-    {
-        meterProviderBuilder
-            .AddMeter("MinimalWorker")
-            .AddAzureMonitorMetricExporter(options =>
-            {
-                options.ConnectionString = "InstrumentationKey=...";
-            });
-    });
-```
-
-#### OTLP (OpenTelemetry Protocol)
-
-Compatible with Jaeger, Zipkin, Grafana Tempo, and more:
-
-```bash
-dotnet add package OpenTelemetry.Exporter.OpenTelemetryProtocol
-```
-
-```csharp
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracerProviderBuilder =>
-    {
-        tracerProviderBuilder
-            .AddSource("MinimalWorker")
-            .AddOtlpExporter(options =>
-            {
-                options.Endpoint = new Uri("http://localhost:4317");
-            });
-    });
-```
-
-### 🔬 Example: Monitoring Worker Performance
-
-```csharp
-// Register a named worker for easy identification
-host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (MyService service) =>
-{
-    await service.ProcessData(); // Automatically traced & metered!
-}).WithName("data-processor");
-```
-
-### 🎓 Best Practices
-
-1. **Name your workers** - Use descriptive names for easier identification in logs and metrics
-2. **Always configure OpenTelemetry** in production environments
-3. **Use custom error handlers** for non-fatal errors (they're automatically recorded in traces)
-4. **Monitor error rate metrics** to detect worker failures
-5. **Set up alerts** on `worker_errors_total` or `worker_consecutive_failures > 0`
-6. **Monitor `worker_active`** to detect stopped workers
-7. **Use distributed tracing** to debug worker execution failures
-8. **Check duration histograms** to identify performance bottlenecks
-
-### 📚 Learn More
-
+- See [OpenTelemetry quick start guide](docs/QUICKSTART-TELEMETRY.md) OTLP (OpenTelemetry Protocol) and Azure Application Insights
 - See [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWorker.OpenTelemetry.Sample) for a complete example
 - Read the [OpenTelemetry .NET documentation](https://opentelemetry.io/docs/languages/net/)
 - Explore [Activity API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity)
 - Explore [Metrics API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics)
+
+### 💡 Example dashboard
+
+I have included a example dashboard for grafana in samples/MinimalWorker.OpenTelemetry.Sample project. Below is screenshot of the dashboard.
+
+![dashboard](docs/dashboard.png)
+![logs](docs/logs.png)
+
+### 🧩 Missing metrics / traces / logs?
+
+If you feel like there is missing some telemetry of any kind. Feel free to submit a issue or contact me.
 
 ---
 
