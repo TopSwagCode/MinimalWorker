@@ -255,6 +255,10 @@ This will produce a self-contained native executable with:
 
 See the [MinimalWorker.Aot.Sample](samples/MinimalWorker.Aot.Sample) project for a complete example.
 
+Below is a screenshot of [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWorker.OpenTelemetry.Sample) compiled with AOT to 14mb binary and running. 
+
+![assets/aot.png](assets/aot.png)
+
 ## 👋
 
 Thank you for reading this far :) Hope you find it usefull. Feel free to open issues, give feedback or just say hi :D
