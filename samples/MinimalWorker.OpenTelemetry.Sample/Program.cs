@@ -72,10 +72,9 @@ builder.Services.AddOpenTelemetry()
             })
             .AddOtlpExporter(options =>
             {
-                options.Endpoint = new Uri("http://localhost:4317"); // Prometheus via OTLP
+                options.Endpoint = new Uri("http://localhost:4317"); // Send to OpenTelemetry Collector
                 options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-            })
-            .AddPrometheusExporter(); // Also expose /metrics endpoint
+            });
     });
 
 // Register services
