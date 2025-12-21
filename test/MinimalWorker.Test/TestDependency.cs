@@ -43,18 +43,14 @@ public class ADependency : IADependency
 
 public class BDependency : IBDependency
 {
-    public int IncrementCount { get; private set; }
-    public int DecrementCount { get; private set; }
-    
-    public void Increment()
-    {
-        IncrementCount++;
-    }
+    private int _incrementCount;
+    private int _decrementCount;
 
-    public void Decrement()
-    {
-        DecrementCount++;
-    }
+    public int IncrementCount => _incrementCount;
+    public int DecrementCount => _decrementCount;
+
+    public void Increment() => Interlocked.Increment(ref _incrementCount);
+    public void Decrement() => Interlocked.Increment(ref _decrementCount);
 }
 
 public interface IServiceA
@@ -151,4 +147,45 @@ public class WorkerSettings
 {
     public bool Enabled { get; set; }
     public int Interval { get; set; }
+}
+
+// Test logger to capture log messages (thread-safe)
+public class TestLoggerProvider : Microsoft.Extensions.Logging.ILoggerProvider
+{
+    private readonly System.Collections.Concurrent.ConcurrentBag<string> _messages;
+
+    public TestLoggerProvider(System.Collections.Concurrent.ConcurrentBag<string> messages)
+    {
+        _messages = messages;
+    }
+
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName)
+    {
+        return new TestLogger(_messages);
+    }
+
+    public void Dispose() { }
+}
+
+public class TestLogger : Microsoft.Extensions.Logging.ILogger
+{
+    private readonly System.Collections.Concurrent.ConcurrentBag<string> _messages;
+
+    public TestLogger(System.Collections.Concurrent.ConcurrentBag<string> messages)
+    {
+        _messages = messages;
+    }
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        var message = formatter(state, exception);
+        if (exception != null)
+        {
+            message += $" Exception: {exception.Message}";
+        }
+        _messages.Add(message);
+    }
 }

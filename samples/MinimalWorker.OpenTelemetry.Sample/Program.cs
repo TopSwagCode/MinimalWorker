@@ -49,15 +49,15 @@ builder.Services.AddOpenTelemetry()
     {
         tracerProviderBuilder
             .SetResourceBuilder(resourceBuilder)
-            .AddSource("MinimalWorker") // Subscribe to MinimalWorker ActivitySource
-            .SetSampler(new AlwaysOnSampler()) // Sample all traces
+            .AddSource("MinimalWorker")
+            .SetSampler(new AlwaysOnSampler())
             .AddConsoleExporter(options =>
             {
                 options.Targets = OpenTelemetry.Exporter.ConsoleExporterOutputTargets.Console;
             })
             .AddOtlpExporter(options =>
             {
-                options.Endpoint = new Uri("http://localhost:4317"); // Jaeger OTLP endpoint
+                options.Endpoint = new Uri("http://localhost:4317");
                 options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
             });
     })
@@ -65,14 +65,14 @@ builder.Services.AddOpenTelemetry()
     {
         meterProviderBuilder
             .SetResourceBuilder(resourceBuilder)
-            .AddMeter("MinimalWorker") // Subscribe to MinimalWorker Meter
+            .AddMeter("MinimalWorker")
             .AddConsoleExporter((exporterOptions, metricReaderOptions) =>
             {
-                metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 5000; // Export every 5 seconds
+                metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 5000;
             })
             .AddOtlpExporter(options =>
             {
-                options.Endpoint = new Uri("http://localhost:4317"); // Send to OpenTelemetry Collector
+                options.Endpoint = new Uri("http://localhost:4317");
                 options.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
             });
     });
@@ -83,11 +83,10 @@ builder.Services.AddSingleton<CounterService>();
 
 var host = builder.Build();
 
-// Register background workers using IHost
 host.RunBackgroundWorker(async (IMessageService messageService, ILogger<Program> logger) =>
 {
     logger.LogInformation("🔄 Continuous worker executing: {Message}", messageService.GetMessage());
-    await Task.Delay(500); // Simulate work (faster for demo)
+    await Task.Delay(500);
 }).WithName("message-processor");
 
 host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (CounterService counter, ILogger<Program> logger) =>
@@ -103,7 +102,6 @@ host.RunCronBackgroundWorker("*/1 * * * *", async (ILogger<Program> logger) =>
     await Task.CompletedTask;
 }).WithName("cron-reporter");
 
-// 🎲 Flaky worker - 50/50 chance of success/failure
 host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program> logger) =>
     {
         var random = new Random();
@@ -111,27 +109,25 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
 
         if (willFail)
         {
-            logger.LogWarning("Flaky worker: Attempting operation that might fail...");
-            await Task.Delay(100); // Small delay before failure
+            logger.LogWarning("🎲 Flaky worker: Attempting operation that might fail...");
+            await Task.Delay(100);
             throw new InvalidOperationException("Flaky worker failed! (Simulated random failure)");
         }
         else
         {
             logger.LogInformation("Flaky worker: Success! Operation completed.");
-            await Task.Delay(200); // Slightly longer delay for success path
+            await Task.Delay(200);
         }
     })
     .WithName("flaky-worker")
     .WithErrorHandler((Exception ex) =>
     {
-        // Handle errors gracefully - log but don't crash
     });
 
-// 💤 Slow worker - Random delays to show performance variance
 host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (ILogger<Program> logger) =>
 {
     var random = new Random();
-    var delayMs = random.Next(1000, 3000); // Random delay between 1-3 seconds
+    var delayMs = random.Next(1000, 3000);
 
     logger.LogInformation("💤 Slow worker: Starting operation (will take ~{DelayMs}ms)...", delayMs);
 
@@ -140,12 +136,8 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (ILogger<Program
     logger.LogInformation("💤 Slow worker: ✅ Completed after {DelayMs}ms", delayMs);
 }).WithName("slow-worker");
 
-// Run indefinitely (or until Ctrl+C)
 await host.RunAsync();
 
-Console.WriteLine("\nGraceful shutdown completed.");
-
-// Service implementations
 public interface IMessageService
 {
     string GetMessage();
