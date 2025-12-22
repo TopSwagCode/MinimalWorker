@@ -19,6 +19,7 @@
 - 🔄 Built-in support for `CancellationToken`
 - 🧪 Works seamlessly with dependency injection (`IServiceProvider`)
 - 🧼 Minimal and clean API
+- 📈 Built-in telemetry with automatic metrics and distributed tracing
 - 🏎️ AOT Compilation Support
 
 ---
@@ -70,53 +71,85 @@ app.RunCronBackgroundWorker("0 0 * * *", async (CancellationToken ct, MyService 
 });
 ```
 
+### Fluent Configuration with Builder Pattern
+
+All worker methods return an `IWorkerBuilder` for fluent configuration of names and error handlers:
+
+```csharp
+// Named continuous worker with error handling
+app.RunBackgroundWorker(async (OrderService service, CancellationToken token) =>
+{
+    await service.ProcessOrders();
+})
+.WithName("order-processor")
+.WithErrorHandler(ex => Console.WriteLine($"Order processing failed: {ex.Message}"));
+
+// Named periodic worker
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(30), async (CacheService cache) =>
+{
+    await cache.Cleanup();
+})
+.WithName("cache-cleanup");
+
+// Named cron worker with error handling
+app.RunCronBackgroundWorker("0 2 * * *", async (ReportService reports) =>
+{
+    await reports.GenerateDailyReport();
+})
+.WithName("nightly-report")
+.WithErrorHandler(ex => logger.LogError(ex, "Nightly report failed"));
+```
+
+Worker names appear in:
+- **Logs**: `Worker 'order-processor' started (Type: continuous, Id: 1)`
+- **Metrics**: `worker.name="order-processor"` tag
+- **Traces**: `worker.name` attribute on spans
+
+If no name is provided, a default name is generated (e.g., `worker-1`).
+
 All methods automatically resolve services from the DI container and inject the `CancellationToken` if it's a parameter.
 
 Workers are automatically initialized and started when the application starts - no additional calls needed!
 
 ### Error Handling
 
-All worker methods accept an optional `onError` callback for handling exceptions:
+You can handle errors as part of your Run Worker, with eg. `try / catch` or you can use the `.WithErrorHandler()` builder method for handling exceptions:
 
 ```csharp
-app.RunBackgroundWorker(
-    async (MyService service, CancellationToken token) =>
-    {
-        await service.DoRiskyWork();
-    },
-    onError: ex =>
-    {
-        // Custom error handling - log, alert, etc.
-        Console.WriteLine($"Worker error: {ex.Message}");
-        // Worker continues running after error
-    }
-);
+app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
+{
+    await service.DoRiskyWork();
+})
+.WithErrorHandler(ex =>
+{
+    // Custom error handling - log, alert, etc.
+    Console.WriteLine($"Worker error: {ex.Message}");
+    // Worker continues running after error
+});
 ```
 
-**Important**: 
-- If `onError` is **not provided**, exceptions are **rethrown** and may crash the worker
-- If `onError` **is provided**, the exception is passed to your handler and the worker continues
+**Important**:
+- If `.WithErrorHandler()` is **not provided**, exceptions are **rethrown** and will stop all the workers
+- If `.WithErrorHandler()` **is provided**, the exception is passed to your handler and the worker continues
 - `OperationCanceledException` is always handled gracefully during shutdown
 
 #### Using Dependency Injection in Error Handlers
 
-The `onError` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
+The `.WithErrorHandler()` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
 
 ```csharp
 // Capture logger at startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-app.RunBackgroundWorker(
-    async (CancellationToken token) =>
-    {
-        await DoWork();
-    },
-    onError: ex =>
-    {
-        logger.LogError(ex, "Worker failed");
-        // Use the captured logger
-    }
-);
+app.RunBackgroundWorker(async (CancellationToken token) =>
+{
+    await DoWork();
+})
+.WithErrorHandler(ex =>
+{
+    logger.LogError(ex, "Worker failed");
+    // Use the captured logger
+});
 ```
 
 **Note**: This captures singleton services. For scoped services, this approach has limitations. Native DI support for error handlers is being considered for a future release.
@@ -157,6 +190,43 @@ This ensures you catch configuration errors early, before deploying to productio
 - Workers automatically start when the application starts via `lifetime.ApplicationStarted.Register()`
 - Services and parameters are resolved per execution using `CreateScope()` to support scoped dependencies.
 
+## 📡 Observability & OpenTelemetry
+
+MinimalWorker provides **production-grade observability** out of the box with **zero configuration required**. All workers automatically emit metrics and distributed traces using native .NET APIs (`System.Diagnostics.Activity` and `System.Diagnostics.Metrics`).
+
+### 🎯 What's Automatically Instrumented
+
+**Every worker execution** is automatically instrumented with:
+
+✅ **Distributed Tracing** - Activity spans for each execution  
+✅ **Metrics** - Execution count, error count, and duration histograms  
+✅ **Tags/Dimensions** - Worker ID, type, iteration count, cron expression  
+✅ **Exception Recording** - Full exception details in traces  
+✅ **Zero Breaking Changes** - Works with or without OpenTelemetry configured  
+
+📊 **For detailed metrics documentation see [METRICS.md](docs/METRICS.md)**
+
+### 📚 Learn More and example
+
+- See [OpenTelemetry quick start guide](docs/QUICKSTART-TELEMETRY.md) OTLP (OpenTelemetry Protocol) and Azure Application Insights
+- See [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWorker.OpenTelemetry.Sample) for a complete example
+- Read the [OpenTelemetry .NET documentation](https://opentelemetry.io/docs/languages/net/)
+- Explore [Activity API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity)
+- Explore [Metrics API docs](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics)
+
+### 💡 Example dashboard
+
+I have included a example dashboard for Grafana in samples/MinimalWorker.OpenTelemetry.Sample project. Below is screenshot of the dashboard.
+
+![dashboard](docs/dashboard.png)
+![logs](docs/logs.png)
+
+### 🧩 Missing metrics / traces / logs?
+
+If you feel like there is missing some telemetry of any kind. Feel free to submit an issue or contact me.
+
+---
+
 ## 🚀 AOT Compilation Support
 
 MinimalWorker is fully compatible with .NET Native AOT compilation! The library uses source generators instead of reflection, making it perfect for AOT scenarios.
@@ -184,6 +254,10 @@ This will produce a self-contained native executable with:
 - **AOT-safe** - all worker registration happens via source generators, no reflection
 
 See the [MinimalWorker.Aot.Sample](samples/MinimalWorker.Aot.Sample) project for a complete example.
+
+Below is a screenshot of [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWorker.OpenTelemetry.Sample) compiled with AOT to a 14 MB binary and running, versus compiling it as a normal standalone build where the size is approximately 80 MB.
+
+![assets/aot.png](assets/aot.png)
 
 ## 👋
 

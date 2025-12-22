@@ -16,8 +16,6 @@ namespace MinimalWorker.Generators;
 [Generator]
 public class WorkerGenerator : IIncrementalGenerator
 {
-    private static int _workerCounter = 0;
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Find all invocations of RunBackgroundWorker, RunPeriodicBackgroundWorker, and RunCronBackgroundWorker
@@ -70,12 +68,10 @@ public class WorkerGenerator : IIncrementalGenerator
         if (methodSymbol != null &&methodSymbol.ContainingType?.Name != "BackgroundWorkerExtensions")
             return null;
 
-        var workerId = System.Threading.Interlocked.Increment(ref _workerCounter);
+        // Note: WorkerId will be assigned later in Execute() after all workers are collected
+        // This ensures deterministic IDs regardless of file processing order
         var model = new WorkerInvocationModel
         {
-            WorkerId = $"{workerId:D3}",
-            HandlerMethodName = $"Handler_{workerId:D3}",
-            InvokerFieldName = $"__Invoker_{workerId:D3}",
             Type = methodName switch
             {
                 "RunPeriodicBackgroundWorker" => WorkerType.Periodic,
@@ -234,6 +230,16 @@ namespace MinimalWorker.Generated
         var validWorkers = workers.Where(w => w != null).ToList();
         if (validWorkers.Count == 0)
             return;
+
+        // Assign deterministic WorkerIds after all workers are collected
+        // This ensures consistent IDs regardless of file processing order
+        for (int i = 0; i < validWorkers.Count; i++)
+        {
+            var workerId = i + 1;
+            validWorkers[i].WorkerId = $"{workerId:D3}";
+            validWorkers[i].HandlerMethodName = $"Handler_{workerId:D3}";
+            validWorkers[i].InvokerFieldName = $"__Invoker_{workerId:D3}";
+        }
 
         // Generate the worker code
         var source = WorkerEmitter.EmitSource(validWorkers);
