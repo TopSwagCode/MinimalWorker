@@ -216,7 +216,7 @@ MinimalWorker provides **production-grade observability** out of the box with **
 
 ### 💡 Example dashboard
 
-I have included a example dashboard for grafana in samples/MinimalWorker.OpenTelemetry.Sample project. Below is screenshot of the dashboard.
+I have included a example dashboard for Grafana in samples/MinimalWorker.OpenTelemetry.Sample project. Below is screenshot of the dashboard.
 
 ![dashboard](docs/dashboard.png)
 ![logs](docs/logs.png)
