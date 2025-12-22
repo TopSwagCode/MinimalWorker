@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - '**'
-  pull_request:
-    branches:
-      - master
-      - main
 
 permissions:
   contents: read
@@ -17,7 +13,6 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' || github.event.pull_request == null
     
     strategy:
       matrix:
