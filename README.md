@@ -113,7 +113,7 @@ Workers are automatically initialized and started when the application starts - 
 
 ### Error Handling
 
-You can handle errors as part of you Run Worker, with eg. `try / catch` or you can use the `.WithErrorHandler()` builder method for handling exceptions:
+You can handle errors as part of your Run Worker, with eg. `try / catch` or you can use the `.WithErrorHandler()` builder method for handling exceptions:
 
 ```csharp
 app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
