@@ -372,6 +372,12 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("            try");
         sb.AppendLine("            {");
+        sb.AppendLine("                var tags = new TagList");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    { \"worker.id\", workerId },");
+        sb.AppendLine("                    { \"worker.name\", workerName },");
+        sb.AppendLine("                    { \"worker.type\", \"continuous\" }");
+        sb.AppendLine("                };");
         sb.AppendLine("                while (!token.IsCancellationRequested)");
         sb.AppendLine("                {");
         sb.AppendLine("                    iteration++;");
@@ -382,12 +388,6 @@ internal static class WorkerEmitter
         sb.AppendLine("                    activity?.SetTag(\"worker.iteration\", iteration);");
         sb.AppendLine();
         sb.AppendLine("                    var stopwatch = Stopwatch.StartNew();");
-        sb.AppendLine("                    var tags = new TagList");
-        sb.AppendLine("                    {");
-        sb.AppendLine("                        { \"worker.id\", workerId },");
-        sb.AppendLine("                        { \"worker.name\", workerName },");
-        sb.AppendLine("                        { \"worker.type\", \"continuous\" }");
-        sb.AppendLine("                    };");
         sb.AppendLine();
         sb.AppendLine("                    try");
         sb.AppendLine("                    {");
