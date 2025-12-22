@@ -707,7 +707,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                            { \"worker.id\", workerId },");
         sb.AppendLine("                            { \"worker.name\", workerName },");
         sb.AppendLine("                            { \"worker.type\", \"cron\" },");
-        sb.AppendLine("                            { \"exception.type\", ex.GetType().Name }");
+        sb.AppendLine("                            { \"exception.type\", ex.GetType().FullName }");
         sb.AppendLine("                        };");
         sb.AppendLine("                        MinimalWorkerObservability.ErrorCounter.Add(1, errorTags);");
         sb.AppendLine("                        MinimalWorkerObservability.RecordFailure(workerId);");
