@@ -59,13 +59,13 @@ internal static class WorkerEmitter
         sb.AppendLine("    /// ActivitySource for distributed tracing.");
         sb.AppendLine("    /// Configure with: tracerProvider.AddSource(\"MinimalWorker\")");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    internal static readonly ActivitySource ActivitySource = new(\"MinimalWorker\", \"3.0.0\");");
+        sb.AppendLine("    internal static readonly ActivitySource ActivitySource = new(\"MinimalWorker\", \"3.1.0\");");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Meter for metrics collection.");
         sb.AppendLine("    /// Configure with: meterProvider.AddMeter(\"MinimalWorker\")");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine("    internal static readonly Meter Meter = new(\"MinimalWorker\", \"3.0.0\");");
+        sb.AppendLine("    internal static readonly Meter Meter = new(\"MinimalWorker\", \"3.1.0\");");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Counter for total worker executions.");
