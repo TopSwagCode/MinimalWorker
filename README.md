@@ -223,7 +223,7 @@ I have included a example dashboard for Grafana in samples/MinimalWorker.OpenTel
 
 ### 🧩 Missing metrics / traces / logs?
 
-If you feel like there is missing some telemetry of any kind. Feel free to submit a issue or contact me.
+If you feel like there is missing some telemetry of any kind. Feel free to submit an issue or contact me.
 
 ---
 
