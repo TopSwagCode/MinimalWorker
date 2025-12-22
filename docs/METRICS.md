@@ -245,7 +245,7 @@ group by (service_version) (target_info)
 |-------------|------|-------------|-----------|
 | `worker.executions` | Counter | Total worker executions | worker.id, worker.name, worker.type |
 | `worker.errors` | Counter | Total worker errors | worker.id, worker.name, worker.type, exception.type |
-| `worker.duration` | Histogram | Execution duration (ms) | worker.id, worker.name, worker.type |
+| `worker.duration` | Histogram | Execution duration (milliseconds) | worker.id, worker.name, worker.type |
 | `worker.active` | Gauge | Worker running status (1=active, 0=stopped) | worker.id, worker.name, worker.type |
 | `worker.consecutive_failures` | Gauge | Consecutive failure count | worker.id, worker.name, worker.type |
 | `worker.last_success_time` | Gauge | Last success timestamp (Unix) | worker.id, worker.name, worker.type |
