@@ -13,12 +13,20 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var activitiesCollected = new List<Activity>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "MinimalWorker",
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-            ActivityStarted = activity => activitiesCollected.Add(activity)
+            ActivityStarted = activity =>
+            {
+                lock (activitiesCollected)
+                {
+                    activitiesCollected.Add(activity);
+                }
+                signal.TrySetResult(true);
+            }
         };
         ActivitySource.AddActivityListener(activityListener);
 
@@ -31,7 +39,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -49,12 +57,20 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var activitiesCollected = new List<Activity>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "MinimalWorker",
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-            ActivityStarted = activity => activitiesCollected.Add(activity)
+            ActivityStarted = activity =>
+            {
+                lock (activitiesCollected)
+                {
+                    activitiesCollected.Add(activity);
+                }
+                signal.TrySetResult(true);
+            }
         };
         ActivitySource.AddActivityListener(activityListener);
 
@@ -67,7 +83,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -84,12 +100,23 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var activitiesCollected = new List<Activity>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "MinimalWorker",
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity => activitiesCollected.Add(activity)
+            ActivityStopped = activity =>
+            {
+                lock (activitiesCollected)
+                {
+                    activitiesCollected.Add(activity);
+                }
+                if (activity.Status == ActivityStatusCode.Error)
+                {
+                    signal.TrySetResult(true);
+                }
+            }
         };
         ActivitySource.AddActivityListener(activityListener);
 
@@ -103,7 +130,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -119,6 +146,8 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var executionMeasurements = new List<long>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        const int targetCount = 3;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -130,7 +159,14 @@ public class TelemetryTests
         };
         meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
         {
-            executionMeasurements.Add(measurement);
+            lock (executionMeasurements)
+            {
+                executionMeasurements.Add(measurement);
+                if (executionMeasurements.Sum() >= targetCount)
+                {
+                    signal.TrySetResult(true);
+                }
+            }
         });
         meterListener.Start();
 
@@ -143,7 +179,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(150);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         meterListener.RecordObservableInstruments();
         await host.StopAsync();
 
@@ -158,6 +194,7 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var errorMeasurements = new List<(long Value, string? ExceptionType)>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -178,7 +215,11 @@ public class TelemetryTests
                     break;
                 }
             }
-            errorMeasurements.Add((measurement, exceptionType));
+            lock (errorMeasurements)
+            {
+                errorMeasurements.Add((measurement, exceptionType));
+            }
+            signal.TrySetResult(true);
         });
         meterListener.Start();
 
@@ -192,7 +233,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -208,6 +249,8 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var durationMeasurements = new List<double>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        const int targetCount = 3;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -219,7 +262,14 @@ public class TelemetryTests
         };
         meterListener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
         {
-            durationMeasurements.Add(measurement);
+            lock (durationMeasurements)
+            {
+                durationMeasurements.Add(measurement);
+                if (durationMeasurements.Count >= targetCount)
+                {
+                    signal.TrySetResult(true);
+                }
+            }
         });
         meterListener.Start();
 
@@ -232,7 +282,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(150);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -247,12 +297,20 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var activitiesCollected = new List<Activity>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "MinimalWorker",
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-            ActivityStarted = activity => activitiesCollected.Add(activity)
+            ActivityStarted = activity =>
+            {
+                lock (activitiesCollected)
+                {
+                    activitiesCollected.Add(activity);
+                }
+                signal.TrySetResult(true);
+            }
         };
         ActivitySource.AddActivityListener(activityListener);
 
@@ -265,7 +323,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(120);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -281,6 +339,7 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var measurementTags = new List<Dictionary<string, object?>>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -297,7 +356,11 @@ public class TelemetryTests
             {
                 tagDict[tag.Key] = tag.Value;
             }
-            measurementTags.Add(tagDict);
+            lock (measurementTags)
+            {
+                measurementTags.Add(tagDict);
+            }
+            signal.TrySetResult(true);
         });
         meterListener.Start();
 
@@ -310,7 +373,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -327,6 +390,8 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var workerExecutions = new Dictionary<string, int>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        const int targetCountPerWorker = 2;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -353,6 +418,13 @@ public class TelemetryTests
                 {
                     workerExecutions.TryGetValue(workerName, out var count);
                     workerExecutions[workerName] = count + 1;
+
+                    // Signal when both workers have reached target count
+                    if (workerExecutions.TryGetValue("worker-alpha", out var alphaCount) && alphaCount >= targetCountPerWorker &&
+                        workerExecutions.TryGetValue("worker-beta", out var betaCount) && betaCount >= targetCountPerWorker)
+                    {
+                        signal.TrySetResult(true);
+                    }
                 }
             }
         });
@@ -372,7 +444,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(150);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
@@ -388,12 +460,23 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var completedActivities = new List<Activity>();
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var activityListener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == "MinimalWorker",
             Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity => completedActivities.Add(activity)
+            ActivityStopped = activity =>
+            {
+                lock (completedActivities)
+                {
+                    completedActivities.Add(activity);
+                }
+                if (activity.Status == ActivityStatusCode.Ok)
+                {
+                    signal.TrySetResult(true);
+                }
+            }
         };
         ActivitySource.AddActivityListener(activityListener);
 
@@ -406,7 +489,7 @@ public class TelemetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
         // Assert
