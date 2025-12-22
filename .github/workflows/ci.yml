@@ -35,4 +35,13 @@ jobs:
       run: dotnet build MinimalWorker.sln --configuration Release --no-restore
 
     - name: Test
-      run: dotnet test MinimalWorker.sln --configuration Release --no-build --verbosity normal
+      run: dotnet test MinimalWorker.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+    
+    - name: Publish Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test Results (.NET ${{ matrix.dotnet-version }})
+        path: '**/test-results.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
