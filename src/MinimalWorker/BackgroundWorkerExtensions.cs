@@ -222,7 +222,7 @@ public static class BackgroundWorkerExtensions
     ///         Console.WriteLine("Running background task...");
     ///         await Task.Delay(1000, token);
     ///     }
-    /// }).WithName("order-processor").OnError(ex => Console.WriteLine(ex));
+    /// }).WithName("order-processor").WithErrorHandler(ex => Console.WriteLine(ex));
     /// </code>
     /// </example>
     public static IWorkerBuilder RunBackgroundWorker(this IHost host, Delegate action)
