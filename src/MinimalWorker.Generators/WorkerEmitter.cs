@@ -164,7 +164,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<int>> GetActiveWorkerMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        foreach (var state in _workerStates.Values)");
+        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
+        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
         sb.AppendLine("        {");
         sb.AppendLine("            var tags = new TagList");
         sb.AppendLine("            {");
@@ -188,7 +189,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<long>> GetLastSuccessMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        foreach (var state in _workerStates.Values)");
+        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
+        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
         sb.AppendLine("        {");
         sb.AppendLine("            if (state.LastSuccessTimestamp > 0)");
         sb.AppendLine("            {");
@@ -214,7 +216,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<long>> GetConsecutiveFailuresMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        foreach (var state in _workerStates.Values)");
+        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
+        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
         sb.AppendLine("        {");
         sb.AppendLine("            var tags = new TagList");
         sb.AppendLine("            {");
