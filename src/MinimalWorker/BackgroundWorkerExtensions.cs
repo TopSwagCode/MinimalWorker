@@ -57,7 +57,7 @@ internal class WorkerBuilder : IWorkerBuilder
 public static partial class BackgroundWorkerExtensions
 {
     private static readonly Action<ILogger, string, Exception?> LogWorkerValidationFailed =
-        LoggerMessage.Define<string>(LogLevel.Critical, new EventId(1, "WorkerValidationFailed"),
+        LoggerMessage.Define<string>(LogLevel.Critical, new EventId(100, "WorkerValidationFailed"),
             "FATAL: Worker dependency validation failed: {Message}");
 
     /// <summary>
