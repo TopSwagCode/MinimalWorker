@@ -230,11 +230,57 @@ internal static class WorkerEmitter
         sb.AppendLine("    }");
         sb.AppendLine("}");
         sb.AppendLine();
-        
+
+        // Emit high-performance logging messages class
+        EmitWorkerLogMessages(sb);
+
         // Emit the extension method that wires up all workers
         EmitWorkerExtension(sb, workers);
         
         return sb.ToString();
+    }
+
+    private static void EmitWorkerLogMessages(StringBuilder sb)
+    {
+        sb.AppendLine("/// <summary>");
+        sb.AppendLine("/// High-performance, AOT-compatible logging messages for MinimalWorker.");
+        sb.AppendLine("/// Uses LoggerMessage.Define for zero-allocation logging.");
+        sb.AppendLine("/// </summary>");
+        sb.AppendLine("internal static class WorkerLogMessages");
+        sb.AppendLine("{");
+        sb.AppendLine("    // Worker started messages");
+        sb.AppendLine("    internal static readonly Action<ILogger, string, string, string, Exception?> WorkerStarted =");
+        sb.AppendLine("        LoggerMessage.Define<string, string, string>(LogLevel.Information, new EventId(1, \"WorkerStarted\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId})\");");
+        sb.AppendLine();
+        sb.AppendLine("    internal static readonly Action<ILogger, string, string, string, TimeSpan, Exception?> WorkerStartedWithSchedule =");
+        sb.AppendLine("        LoggerMessage.Define<string, string, string, TimeSpan>(LogLevel.Information, new EventId(2, \"WorkerStartedWithSchedule\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId}, Schedule: {Schedule})\");");
+        sb.AppendLine();
+        sb.AppendLine("    internal static readonly Action<ILogger, string, string, string, string, Exception?> WorkerStartedWithCron =");
+        sb.AppendLine("        LoggerMessage.Define<string, string, string, string>(LogLevel.Information, new EventId(3, \"WorkerStartedWithCron\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId}, CronExpression: {CronExpression})\");");
+        sb.AppendLine();
+        sb.AppendLine("    // Worker stopped message");
+        sb.AppendLine("    internal static readonly Action<ILogger, string, string, string, Exception?> WorkerStopped =");
+        sb.AppendLine("        LoggerMessage.Define<string, string, string>(LogLevel.Information, new EventId(4, \"WorkerStopped\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' stopped (Type: {WorkerType}, Id: {WorkerId})\");");
+        sb.AppendLine();
+        sb.AppendLine("    // Worker execution failed messages");
+        sb.AppendLine("    internal static readonly Action<ILogger, string, long, Exception?> WorkerExecutionFailedWithIteration =");
+        sb.AppendLine("        LoggerMessage.Define<string, long>(LogLevel.Error, new EventId(5, \"WorkerExecutionFailedWithIteration\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' execution failed (Iteration: {Iteration})\");");
+        sb.AppendLine();
+        sb.AppendLine("    internal static readonly Action<ILogger, string, Exception?> WorkerExecutionFailed =");
+        sb.AppendLine("        LoggerMessage.Define<string>(LogLevel.Error, new EventId(6, \"WorkerExecutionFailed\"),");
+        sb.AppendLine("            \"Worker '{WorkerName}' execution failed\");");
+        sb.AppendLine();
+        sb.AppendLine("    // Fatal error message");
+        sb.AppendLine("    internal static readonly Action<ILogger, string, Exception?> WorkerFatalError =");
+        sb.AppendLine("        LoggerMessage.Define<string>(LogLevel.Critical, new EventId(7, \"WorkerFatalError\"),");
+        sb.AppendLine("            \"FATAL: Unhandled exception in background worker '{WorkerName}'. Application will terminate.\");");
+        sb.AppendLine("}");
+        sb.AppendLine();
     }
 
     private static void EmitWorkerExtension(StringBuilder sb, List<WorkerInvocationModel> workers)
@@ -378,7 +424,7 @@ internal static class WorkerEmitter
         sb.AppendLine("            MinimalWorkerObservability.RegisterWorker(workerId, workerName, \"continuous\");");
         sb.AppendLine();
         sb.AppendLine("            // Log worker started");
-        sb.AppendLine("            workerLogger?.LogInformation(\"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId})\", workerName, \"continuous\", workerId);");
+        sb.AppendLine("            if (workerLogger != null) WorkerLogMessages.WorkerStarted(workerLogger, workerName, \"continuous\", workerId, null);");
         sb.AppendLine();
         sb.AppendLine("            try");
         sb.AppendLine("            {");
@@ -433,7 +479,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        MinimalWorkerObservability.RecordFailure(workerId);");
         sb.AppendLine();
         sb.AppendLine("                        // Log error");
-        sb.AppendLine("                        workerLogger?.LogError(ex, \"Worker '{WorkerName}' execution failed (Iteration: {Iteration})\", workerName, iteration);");
+        sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailedWithIteration(workerLogger, workerName, iteration, ex);");
         sb.AppendLine();
         sb.AppendLine("                        if (registration.OnError != null)");
         sb.AppendLine("                        {");
@@ -442,7 +488,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        else");
         sb.AppendLine("                        {");
         sb.AppendLine("                            // No error handler provided - crash the app (fail-fast)");
-        sb.AppendLine("                            workerLogger?.LogCritical(ex, \"FATAL: Unhandled exception in background worker '{WorkerName}'. Application will terminate.\", workerName);");
+        sb.AppendLine("                            if (workerLogger != null) WorkerLogMessages.WorkerFatalError(workerLogger, workerName, ex);");
         sb.AppendLine("                            ");
         sb.AppendLine("                            // Terminate the application immediately");
         sb.AppendLine("                            BackgroundWorkerExtensions.TerminateOnFatalError(ex);");
@@ -459,7 +505,7 @@ internal static class WorkerEmitter
         sb.AppendLine("            {");
         sb.AppendLine("                // Deactivate worker when it stops");
         sb.AppendLine("                MinimalWorkerObservability.DeactivateWorker(workerId);");
-        sb.AppendLine("                workerLogger?.LogInformation(\"Worker '{WorkerName}' stopped (Type: {WorkerType}, Id: {WorkerId})\", workerName, \"continuous\", workerId);");
+        sb.AppendLine("                if (workerLogger != null) WorkerLogMessages.WorkerStopped(workerLogger, workerName, \"continuous\", workerId, null);");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
@@ -495,7 +541,7 @@ internal static class WorkerEmitter
         sb.AppendLine("        MinimalWorkerObservability.RegisterWorker(workerId, workerName, \"periodic\");");
         sb.AppendLine();
         sb.AppendLine("        // Log worker started");
-        sb.AppendLine("        workerLogger?.LogInformation(\"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId}, Schedule: {Schedule})\", workerName, \"periodic\", workerId, schedule);");
+        sb.AppendLine("        if (workerLogger != null) WorkerLogMessages.WorkerStartedWithSchedule(workerLogger, workerName, \"periodic\", workerId, schedule, null);");
         sb.AppendLine();
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
@@ -571,7 +617,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        MinimalWorkerObservability.RecordFailure(workerId);");
         sb.AppendLine();
         sb.AppendLine("                        // Log error");
-        sb.AppendLine("                        workerLogger?.LogError(ex, \"Worker '{WorkerName}' execution failed\", workerName);");
+        sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailed(workerLogger, workerName, ex);");
         sb.AppendLine();
         sb.AppendLine("                        if (registration.OnError != null)");
         sb.AppendLine("                        {");
@@ -580,7 +626,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        else");
         sb.AppendLine("                        {");
         sb.AppendLine("                            // No error handler provided - crash the app (fail-fast)");
-        sb.AppendLine("                            workerLogger?.LogCritical(ex, \"FATAL: Unhandled exception in background worker '{WorkerName}'. Application will terminate.\", workerName);");
+        sb.AppendLine("                            if (workerLogger != null) WorkerLogMessages.WorkerFatalError(workerLogger, workerName, ex);");
         sb.AppendLine("                            ");
         sb.AppendLine("                            // Terminate the application immediately");
         sb.AppendLine("                            BackgroundWorkerExtensions.TerminateOnFatalError(ex);");
@@ -601,7 +647,7 @@ internal static class WorkerEmitter
         sb.AppendLine("            {");
         sb.AppendLine("                // Deactivate worker when it stops");
         sb.AppendLine("                MinimalWorkerObservability.DeactivateWorker(workerId);");
-        sb.AppendLine("                workerLogger?.LogInformation(\"Worker '{WorkerName}' stopped (Type: {WorkerType}, Id: {WorkerId})\", workerName, \"periodic\", workerId);");
+        sb.AppendLine("                if (workerLogger != null) WorkerLogMessages.WorkerStopped(workerLogger, workerName, \"periodic\", workerId, null);");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
@@ -638,7 +684,7 @@ internal static class WorkerEmitter
         sb.AppendLine("        MinimalWorkerObservability.RegisterWorker(workerId, workerName, \"cron\");");
         sb.AppendLine();
         sb.AppendLine("        // Log worker started");
-        sb.AppendLine("        workerLogger?.LogInformation(\"Worker '{WorkerName}' started (Type: {WorkerType}, Id: {WorkerId}, CronExpression: {CronExpression})\", workerName, \"cron\", workerId, cronExpression);");
+        sb.AppendLine("        if (workerLogger != null) WorkerLogMessages.WorkerStartedWithCron(workerLogger, workerName, \"cron\", workerId, cronExpression, null);");
         sb.AppendLine();
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
@@ -729,7 +775,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        MinimalWorkerObservability.RecordFailure(workerId);");
         sb.AppendLine();
         sb.AppendLine("                        // Log error");
-        sb.AppendLine("                        workerLogger?.LogError(ex, \"Worker '{WorkerName}' execution failed\", workerName);");
+        sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailed(workerLogger, workerName, ex);");
         sb.AppendLine();
         sb.AppendLine("                        if (registration.OnError != null)");
         sb.AppendLine("                        {");
@@ -738,7 +784,7 @@ internal static class WorkerEmitter
         sb.AppendLine("                        else");
         sb.AppendLine("                        {");
         sb.AppendLine("                            // No error handler provided - crash the app (fail-fast)");
-        sb.AppendLine("                            workerLogger?.LogCritical(ex, \"FATAL: Unhandled exception in background worker '{WorkerName}'. Application will terminate.\", workerName);");
+        sb.AppendLine("                            if (workerLogger != null) WorkerLogMessages.WorkerFatalError(workerLogger, workerName, ex);");
         sb.AppendLine("                            ");
         sb.AppendLine("                            // Terminate the application immediately");
         sb.AppendLine("                            BackgroundWorkerExtensions.TerminateOnFatalError(ex);");
@@ -759,7 +805,7 @@ internal static class WorkerEmitter
         sb.AppendLine("            {");
         sb.AppendLine("                // Deactivate worker when it stops");
         sb.AppendLine("                MinimalWorkerObservability.DeactivateWorker(workerId);");
-        sb.AppendLine("                workerLogger?.LogInformation(\"Worker '{WorkerName}' stopped (Type: {WorkerType}, Id: {WorkerId})\", workerName, \"cron\", workerId);");
+        sb.AppendLine("                if (workerLogger != null) WorkerLogMessages.WorkerStopped(workerLogger, workerName, \"cron\", workerId, null);");
         sb.AppendLine("            }");
         sb.AppendLine("        }, token);");
     }
