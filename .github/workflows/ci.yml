@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Build and Test Matrix
     runs-on: ubuntu-latest
 
     strategy:
@@ -37,14 +38,11 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore MinimalWorker.sln
 
-    - name: Build
-      run: dotnet build MinimalWorker.sln --configuration Release --no-restore -f ${{ matrix.framework }}
-
     - name: Test with Coverage
       run: |
         dotnet test MinimalWorker.sln \
           --configuration Release \
-          --no-build \
+          --no-restore \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
           --collect:"XPlat Code Coverage" \
@@ -70,3 +68,25 @@ jobs:
         name: codecov-minimalworker
         fail_ci_if_error: false
         verbose: true
+
+  build-all-samples:
+    name: Build All (Samples)
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_VERSION: '9.0.x'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore MinimalWorker.sln
+
+    - name: Build All
+      run: dotnet build MinimalWorker.sln --configuration Release --no-restore
