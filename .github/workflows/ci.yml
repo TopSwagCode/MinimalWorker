@@ -12,11 +12,18 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Build and Test Matrix
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        dotnet-version: ['8.0.x', '9.0.x', '10.0.x']
+        include:
+          - dotnet-version: '8.0.x'
+            framework: 'net8.0'
+          - dotnet-version: '9.0.x'
+            framework: 'net9.0'
+          - dotnet-version: '10.0.x'
+            framework: 'net10.0'
       fail-fast: false
 
     steps:
@@ -31,18 +38,15 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore MinimalWorker.sln
 
-    - name: Build
-      run: dotnet build MinimalWorker.sln --configuration Release --no-restore
-
     - name: Test with Coverage
       run: |
         dotnet test MinimalWorker.sln \
-          --configuration Release \
-          --no-build \
+          --no-restore \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
           --collect:"XPlat Code Coverage" \
-          --results-directory ./coverage
+          --results-directory ./coverage \
+          -f ${{ matrix.framework }}
 
     - name: Publish Test Results
       uses: dorny/test-reporter@v1
@@ -63,3 +67,25 @@ jobs:
         name: codecov-minimalworker
         fail_ci_if_error: false
         verbose: true
+
+  build-all-samples:
+    name: Build All (Samples)
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_VERSION: '9.0.x'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore MinimalWorker.sln
+
+    - name: Build All
+      run: dotnet build MinimalWorker.sln --configuration Release --no-restore

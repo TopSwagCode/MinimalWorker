@@ -9,14 +9,17 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
 
+    env:
+      DOTNET_VERSION: '10.0.x'
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup .NET
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '9.0.x'
+        dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: Extract version from tag
       id: get_version
