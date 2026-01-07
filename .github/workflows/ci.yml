@@ -41,7 +41,6 @@ jobs:
     - name: Test with Coverage
       run: |
         dotnet test MinimalWorker.sln \
-          --configuration Release \
           --no-restore \
           --verbosity normal \
           --logger "trx;LogFileName=test-results.trx" \
