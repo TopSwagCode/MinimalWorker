@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         include:
@@ -40,9 +40,17 @@ jobs:
     - name: Build
       run: dotnet build MinimalWorker.sln --configuration Release --no-restore -f ${{ matrix.framework }}
 
-    - name: Test
-      run: dotnet test MinimalWorker.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" -f ${{ matrix.framework }}
-    
+    - name: Test with Coverage
+      run: |
+        dotnet test MinimalWorker.sln \
+          --configuration Release \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage \
+          -f ${{ matrix.framework }}
+
     - name: Publish Test Results
       uses: dorny/test-reporter@v1
       if: always()
@@ -51,3 +59,14 @@ jobs:
         path: '**/test-results.trx'
         reporter: dotnet-trx
         fail-on-error: true
+
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v4
+      if: matrix.dotnet-version == '9.0.x'
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage/**/coverage.cobertura.xml
+        flags: unittests
+        name: codecov-minimalworker
+        fail_ci_if_error: false
+        verbose: true

@@ -2,6 +2,7 @@ namespace MinimalWorker;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Fluent builder interface for configuring background workers.
@@ -53,8 +54,12 @@ internal class WorkerBuilder : IWorkerBuilder
 /// Extension methods for registering background workers with source generator-based code generation.
 /// No reflection - fully AOT compatible.
 /// </summary>
-public static class BackgroundWorkerExtensions
+public static partial class BackgroundWorkerExtensions
 {
+    private static readonly Action<ILogger, string, Exception?> LogWorkerValidationFailed =
+        LoggerMessage.Define<string>(LogLevel.Critical, new EventId(100, "WorkerValidationFailed"),
+            "FATAL: Worker dependency validation failed: {Message}");
+
     /// <summary>
     /// Stores worker registrations for source generator processing.
     /// </summary>
@@ -62,7 +67,7 @@ public static class BackgroundWorkerExtensions
     private static int _registrationCounter = 0;
     private static bool _isInitialized = false;
     private static readonly object _lock = new();
-    
+
     /// <summary>
     /// Internal flag to control whether to use Environment.Exit on validation failure.
     /// When false (for testing), throws exception instead. Default is true (production behavior).
@@ -127,7 +132,7 @@ public static class BackgroundWorkerExtensions
         if (type == typeof(double)) return "double";
         if (type == typeof(float)) return "float";
         if (type == typeof(object)) return "object";
-        
+
         if (!type.IsGenericType)
         {
             return type.FullName ?? type.Name;
@@ -137,7 +142,7 @@ public static class BackgroundWorkerExtensions
         var genericTypeDef = type.GetGenericTypeDefinition();
         var genericArgs = type.GetGenericArguments();
         var baseName = genericTypeDef.FullName ?? genericTypeDef.Name;
-        
+
         // Remove the `1, `2 suffix from generic type names
         var tickIndex = baseName.IndexOf('`');
         if (tickIndex > 0)
@@ -167,6 +172,9 @@ public static class BackgroundWorkerExtensions
 
             _isInitialized = true;
 
+            var loggerFactory = host.Services.GetService<ILoggerFactory>();
+            var logger = loggerFactory?.CreateLogger("MinimalWorker.BackgroundWorkerExtensions");
+
             var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
             _lifetime = lifetime;
             lifetime.ApplicationStarted.Register(() =>
@@ -178,10 +186,11 @@ public static class BackgroundWorkerExtensions
                 }
                 catch (Exception ex)
                 {
-                    // Log the critical error
-                    Console.Error.WriteLine($"FATAL: Worker dependency validation failed: {ex.Message}");
-                    Console.Error.WriteLine(ex.StackTrace);
-                    
+                    if (logger != null)
+                    {
+                        LogWorkerValidationFailed(logger, ex.Message, ex);
+                    }
+
                     // In production, trigger graceful shutdown with error code
                     // In tests, throw to allow test frameworks to handle it
                     if (_useEnvironmentExit)
@@ -248,7 +257,7 @@ public static class BackgroundWorkerExtensions
 
         return new WorkerBuilder(registration);
     }
-    
+
     /// <summary>
     /// Maps a periodic background worker that executes the specified delegate at a fixed time interval.
     /// </summary>

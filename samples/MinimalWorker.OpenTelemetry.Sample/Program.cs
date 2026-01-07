@@ -22,14 +22,14 @@ builder.Logging.AddOpenTelemetry(options =>
             ["deployment.environment"] = "development",
             ["host.name"] = Environment.MachineName
         }));
-    
+
     options.AddConsoleExporter();
     options.AddOtlpExporter(otlpOptions =>
     {
         otlpOptions.Endpoint = new Uri("http://localhost:4317");
         otlpOptions.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
     });
-    
+
     options.IncludeFormattedMessage = true;
     options.IncludeScopes = true;
 });
@@ -86,10 +86,10 @@ var host = builder.Build();
 host.RunBackgroundWorker(async (IMessageService messageService, ILogger<Program> logger) =>
 {
     logger.LogInformation("🔄 Continuous worker executing: {Message}", messageService.GetMessage());
-    await Task.Delay(500);
+    await Task.Delay(20);
 }).WithName("message-processor");
 
-host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(2), async (CounterService counter, ILogger<Program> logger) =>
+host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(10), async (CounterService counter, ILogger<Program> logger) =>
 {
     counter.Increment();
     logger.LogInformation("⏰ Periodic worker executing. Count: {Count}", counter.Count);
@@ -102,7 +102,7 @@ host.RunCronBackgroundWorker("*/1 * * * *", async (ILogger<Program> logger) =>
     await Task.CompletedTask;
 }).WithName("cron-reporter");
 
-host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program> logger) =>
+host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(30), async (ILogger<Program> logger) =>
     {
         var random = new Random();
         var willFail = random.Next(2) == 0; // 50% chance
@@ -110,13 +110,13 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
         if (willFail)
         {
             logger.LogWarning("🎲 Flaky worker: Attempting operation that might fail...");
-            await Task.Delay(100);
+            await Task.Delay(10);
             throw new InvalidOperationException("Flaky worker failed! (Simulated random failure)");
         }
         else
         {
             logger.LogInformation("Flaky worker: Success! Operation completed.");
-            await Task.Delay(200);
+            await Task.Delay(20);
         }
     })
     .WithName("flaky-worker")
@@ -124,10 +124,10 @@ host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(3), async (ILogger<Program
     {
     });
 
-host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(5), async (ILogger<Program> logger) =>
+host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(1), async (ILogger<Program> logger) =>
 {
     var random = new Random();
-    var delayMs = random.Next(1000, 3000);
+    var delayMs = random.Next(200, 300);
 
     logger.LogInformation("💤 Slow worker: Starting operation (will take ~{DelayMs}ms)...", delayMs);
 

@@ -3,6 +3,7 @@
 [![Publish NuGet Package](https://github.com/TopSwagCode/MinimalWorker/actions/workflows/publish.yml/badge.svg)](https://github.com/TopSwagCode/MinimalWorker/actions/workflows/publish.yml) 
 ![NuGet Downloads](https://img.shields.io/nuget/dt/MinimalWorker)
 ![NuGet Version](https://img.shields.io/nuget/v/MinimalWorker)
+[![codecov](https://codecov.io/gh/TopSwagCode/minimal-worker/branch/master/graph/badge.svg)](https://codecov.io/gh/TopSwagCode/minimalworker)
 
 
 ![Worker](https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/master/assets/worker.png)
