@@ -40,7 +40,11 @@ jobs:
 
     - name: Test (no coverage)
       if: matrix.framework != 'net10.0'
-      run: dotnet test MinimalWorker.sln --no-restore -f ${{ matrix.framework }}
+      run: |
+        dotnet test MinimalWorker.sln \
+          --no-restore \
+          --logger "trx;LogFileName=test-results.trx" \
+          -f ${{ matrix.framework }}
 
     - name: Test with Coverage
       if: matrix.framework == 'net10.0'
