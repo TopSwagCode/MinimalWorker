@@ -481,7 +481,11 @@ internal static class WorkerEmitter
         sb.AppendLine("                        // Log error");
         sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailedWithIteration(workerLogger, workerName, iteration, ex);");
         sb.AppendLine();
-        sb.AppendLine("                        if (registration.OnError != null)");
+        sb.AppendLine("                        if (registration.OnErrorWithServices != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            registration.OnErrorWithServices(ex, scope.ServiceProvider);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else if (registration.OnError != null)");
         sb.AppendLine("                        {");
         sb.AppendLine("                            registration.OnError(ex);");
         sb.AppendLine("                        }");
@@ -619,7 +623,11 @@ internal static class WorkerEmitter
         sb.AppendLine("                        // Log error");
         sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailed(workerLogger, workerName, ex);");
         sb.AppendLine();
-        sb.AppendLine("                        if (registration.OnError != null)");
+        sb.AppendLine("                        if (registration.OnErrorWithServices != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            registration.OnErrorWithServices(ex, scope.ServiceProvider);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else if (registration.OnError != null)");
         sb.AppendLine("                        {");
         sb.AppendLine("                            registration.OnError(ex);");
         sb.AppendLine("                        }");
@@ -777,7 +785,11 @@ internal static class WorkerEmitter
         sb.AppendLine("                        // Log error");
         sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailed(workerLogger, workerName, ex);");
         sb.AppendLine();
-        sb.AppendLine("                        if (registration.OnError != null)");
+        sb.AppendLine("                        if (registration.OnErrorWithServices != null)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            registration.OnErrorWithServices(ex, scope.ServiceProvider);");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        else if (registration.OnError != null)");
         sb.AppendLine("                        {");
         sb.AppendLine("                            registration.OnError(ex);");
         sb.AppendLine("                        }");

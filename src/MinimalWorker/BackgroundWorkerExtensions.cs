@@ -23,6 +23,15 @@ public interface IWorkerBuilder
     /// <param name="handler">The error handler delegate.</param>
     /// <returns>The builder instance for method chaining.</returns>
     IWorkerBuilder WithErrorHandler(Action<Exception> handler);
+
+    /// <summary>
+    /// Sets an error handler with dependency injection support for unhandled exceptions in the worker.
+    /// The service provider is scoped to the current worker execution.
+    /// If not provided, exceptions will cause the application to terminate.
+    /// </summary>
+    /// <param name="handler">The error handler delegate that receives the exception and a service provider.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    IWorkerBuilder WithErrorHandler(Action<Exception, IServiceProvider> handler);
 }
 
 /// <summary>
@@ -46,6 +55,12 @@ internal class WorkerBuilder : IWorkerBuilder
     public IWorkerBuilder WithErrorHandler(Action<Exception> handler)
     {
         _registration.OnError = handler;
+        return this;
+    }
+
+    public IWorkerBuilder WithErrorHandler(Action<Exception, IServiceProvider> handler)
+    {
+        _registration.OnErrorWithServices = handler;
         return this;
     }
 }
@@ -379,6 +394,7 @@ public static partial class BackgroundWorkerExtensions
         public IHost Host { get; set; } = null!;
         public int ParameterCount { get; set; } // Number of parameters in the delegate
         public Action<Exception>? OnError { get; set; } // Optional error handler
+        public Action<Exception, IServiceProvider>? OnErrorWithServices { get; set; } // Optional error handler with DI support
         public string Signature { get; set; } = string.Empty; // Unique signature based on parameter types
 
         /// <summary>

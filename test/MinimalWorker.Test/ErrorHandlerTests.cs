@@ -245,4 +245,133 @@ public class ErrorHandlerTests
         await host.StopAsync();
         host.Dispose();
     }
+
+    [Fact]
+    public async Task BackgroundWorker_Should_Support_DI_In_Error_Handler()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var exceptionCount = 0;
+        var loggerWasResolved = false;
+        Exception? capturedException = null;
+        var expectedMessage = "Test exception with DI";
+
+        using var host = Host.CreateDefaultBuilder()
+            .Build();
+
+        var executionCount = 0;
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+            {
+                executionCount++;
+                if (executionCount <= 2) // Throw on first 2 executions
+                {
+                    throw new InvalidOperationException(expectedMessage);
+                }
+                await Task.Delay(50, token);
+            })
+            .WithErrorHandler((ex, serviceProvider) =>
+            {
+                exceptionCount++;
+                capturedException = ex;
+
+                // Verify we can resolve services from the service provider
+                var logger = serviceProvider.GetService<ILogger<ErrorHandlerTests>>();
+                loggerWasResolved = logger != null;
+            });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(200); // Give time for worker to execute multiple times
+        await host.StopAsync();
+
+        // Assert
+        Assert.Equal(2, exceptionCount);
+        Assert.NotNull(capturedException);
+        Assert.IsType<InvalidOperationException>(capturedException);
+        Assert.Equal(expectedMessage, capturedException.Message);
+        Assert.True(loggerWasResolved, "Logger should be resolvable from service provider");
+        Assert.True(executionCount > 2, "Worker should continue running after errors");
+    }
+
+    [Fact]
+    public async Task PeriodicWorker_Should_Support_DI_In_Error_Handler()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var exceptionCount = 0;
+        var serviceWasResolved = false;
+        var testService = Substitute.For<TestDependency>();
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddScoped<TestDependency>(_ => testService);
+            })
+            .Build();
+
+        var executionCount = 0;
+        host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(50), async (CancellationToken token) =>
+            {
+                executionCount++;
+                if (executionCount <= 2)
+                {
+                    throw new InvalidOperationException("Periodic worker error");
+                }
+                await Task.CompletedTask;
+            })
+            .WithErrorHandler((ex, serviceProvider) =>
+            {
+                exceptionCount++;
+
+                // Verify we can resolve scoped services from the service provider
+                var service = serviceProvider.GetService<TestDependency>();
+                serviceWasResolved = service != null;
+            });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(300);
+        await host.StopAsync();
+
+        // Assert
+        Assert.Equal(2, exceptionCount);
+        Assert.True(serviceWasResolved, "Scoped service should be resolvable from service provider");
+    }
+
+    [Fact]
+    public async Task CronWorker_Should_Support_DI_In_Error_Handler()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var exceptionCount = 0;
+        var serviceProviderWasNotNull = false;
+
+        using var host = Host.CreateDefaultBuilder()
+            .Build();
+
+        var executionCount = 0;
+        host.RunCronBackgroundWorker("* * * * * *", async (CancellationToken token) =>
+            {
+                executionCount++;
+                if (executionCount <= 1)
+                {
+                    throw new InvalidOperationException("Cron worker error");
+                }
+                await Task.CompletedTask;
+            })
+            .WithErrorHandler((ex, serviceProvider) =>
+            {
+                exceptionCount++;
+                serviceProviderWasNotNull = serviceProvider != null;
+            });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(1500); // Wait for at least one cron execution
+        await host.StopAsync();
+
+        // Assert
+        Assert.Equal(1, exceptionCount);
+        Assert.True(serviceProviderWasNotNull, "Service provider should not be null in error handler");
+    }
 }

@@ -135,24 +135,32 @@ app.RunBackgroundWorker(async (MyService service, CancellationToken token) =>
 
 #### Using Dependency Injection in Error Handlers
 
-The `.WithErrorHandler()` callback currently does not support dependency injection directly. As a workaround, you can capture services from the service provider:
+Error handlers now support dependency injection! Use the overload that accepts both the exception and an `IServiceProvider`:
 
 ```csharp
-// Capture logger at startup
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-
 app.RunBackgroundWorker(async (CancellationToken token) =>
 {
     await DoWork();
 })
-.WithErrorHandler(ex =>
+.WithErrorHandler((ex, serviceProvider) =>
 {
+    // Resolve services directly from the service provider
+    var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
     logger.LogError(ex, "Worker failed");
-    // Use the captured logger
+
+    // Scoped services are also supported!
+    var scopedService = serviceProvider.GetService<IMyScopedService>();
+    scopedService?.HandleError(ex);
 });
 ```
 
-**Note**: This captures singleton services. For scoped services, this approach has limitations. Native DI support for error handlers is being considered for a future release.
+**Note**: The `IServiceProvider` is scoped to the current worker execution, allowing you to resolve both singleton and scoped services.
+
+For simple error handlers that don't need DI, you can still use the original signature:
+
+```csharp
+.WithErrorHandler(ex => Console.WriteLine($"Error: {ex.Message}"))
+```
 
 #### Startup Dependency Validation
 
