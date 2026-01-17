@@ -22,7 +22,7 @@ public class ContinuousWorkerTests
             {
                 while (!token.IsCancellationRequested)
                 {
-                    await Task.Delay(50, token);
+                    await Task.Delay(10, token);
                 }
             }
             catch (OperationCanceledException)
@@ -33,7 +33,7 @@ public class ContinuousWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await Task.Delay(50);
         await host.StopAsync();
 
         // Assert
@@ -58,12 +58,12 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Increment();
-            await Task.Delay(49, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(201); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give worker time to execute multiple times
         await host.StopAsync();
 
         // Assert - Use "at least" to avoid flakiness on different machines
@@ -88,18 +88,18 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Increment();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Decrement();
-            await Task.Delay(100, token);
+            await Task.Delay(20, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give worker time to execute multiple times
         await host.StopAsync();
 
         // Assert - Use "at least" to avoid flakiness on different machines
@@ -135,12 +135,12 @@ public class ContinuousWorkerTests
         {
             myService.Increment(); // -> aDependency.Increment() -> bDependency.Increment()
             myService.Decrement(); // -> aDependency.Decrement() -> bDependency.Decrement()
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give worker time to execute multiple times
         await host.StopAsync();
 
         // Assert - Verify that the delegation chain works through real classes
@@ -172,24 +172,24 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (IServiceA svcA, CancellationToken token) =>
         {
             svcA.Execute();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         host.RunBackgroundWorker(async (IServiceB svcB, CancellationToken token) =>
         {
             svcB.Execute();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         host.RunBackgroundWorker(async (IServiceC svcC, CancellationToken token) =>
         {
             svcC.Execute();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Give workers time to execute multiple times
+        await Task.Delay(100); // Give workers time to execute multiple times
         await host.StopAsync();
 
         // Assert - Verify that all three workers executed independently
@@ -210,12 +210,12 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async () =>
         {
             Interlocked.Increment(ref counter);
-            await Task.Delay(50);
+            await Task.Delay(10);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100);
         await host.StopAsync();
 
         // Assert
@@ -236,7 +236,7 @@ public class ContinuousWorkerTests
             {
                 while (!token.IsCancellationRequested)
                 {
-                    await Task.Delay(50, token); // This will throw OperationCanceledException on shutdown
+                    await Task.Delay(10, token); // This will throw OperationCanceledException on shutdown
                 }
             })
             .WithErrorHandler(ex =>
@@ -246,7 +246,7 @@ public class ContinuousWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await Task.Delay(50);
         await host.StopAsync();
 
         // Assert

@@ -27,7 +27,7 @@ public class ErrorHandlerTests
                 {
                     throw new InvalidOperationException(expectedMessage);
                 }
-                await Task.Delay(50, token);
+                await Task.Delay(10, token);
             })
             .WithErrorHandler(ex =>
             {
@@ -37,7 +37,7 @@ public class ErrorHandlerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Give time for worker to execute multiple times
+        await Task.Delay(100); // Give time for worker to execute multiple times
         await host.StopAsync();
 
         // Assert
@@ -68,7 +68,7 @@ public class ErrorHandlerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give time for worker to throw
+        await Task.Delay(50); // Give time for worker to throw
         await host.StopAsync();
 
         // Assert
@@ -95,7 +95,7 @@ public class ErrorHandlerTests
                     executionCount++;
                     throw new InvalidOperationException(message);
                 }
-                await Task.Delay(50, token);
+                await Task.Delay(10, token);
             })
             .WithErrorHandler(ex =>
             {
@@ -104,7 +104,7 @@ public class ErrorHandlerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100);
         await host.StopAsync();
 
         // Assert
@@ -135,7 +135,7 @@ public class ErrorHandlerTests
         host.RunBackgroundWorker(async (TestDependency counter, CancellationToken token) =>
             {
                 counter.Increment(); // This will throw
-                await Task.Delay(50, token);
+                await Task.Delay(10, token);
             })
             .WithErrorHandler(ex =>
             {
@@ -144,7 +144,7 @@ public class ErrorHandlerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await Task.Delay(50);
         await host.StopAsync();
 
         // Assert
@@ -176,7 +176,7 @@ public class ErrorHandlerTests
         host.RunBackgroundWorker(
             async (IUnregisteredService service, CancellationToken token) =>
             {
-                await Task.Delay(50, token);
+                await Task.Delay(10, token);
             });
 
         // Act & Assert
@@ -184,7 +184,7 @@ public class ErrorHandlerTests
         await host.StartAsync();
 
         // Give time for the ApplicationStarted callback to execute and throw
-        await Task.Delay(100);
+        await Task.Delay(50);
 
         // Verify that a critical error was logged about the missing dependency
         var errorOutput = string.Join("\n", logMessages);
@@ -223,14 +223,14 @@ public class ErrorHandlerTests
             {
                 throw new InvalidOperationException("Simulated runtime error");
             }
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
 
         // Give time for the worker to execute twice and throw
-        await Task.Delay(300);
+        await Task.Delay(100);
 
         // Assert
         // Verify that a critical error was logged about the unhandled exception

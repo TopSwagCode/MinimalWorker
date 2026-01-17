@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 
 namespace MinimalWorker.Test;
 
@@ -34,7 +35,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.Delay(5, token);
         });
 
         // Act
@@ -78,7 +79,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.Delay(5, token);
         }).WithName("test-worker");
 
         // Act
@@ -174,7 +175,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(30, token);
+            await Task.Delay(10, token);
         });
 
         // Act
@@ -277,7 +278,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(20, token); // Delay to create measurable duration
+            await Task.Delay(10, token); // Delay to create measurable duration
         });
 
         // Act
@@ -288,7 +289,7 @@ public class TelemetryTests
         // Assert
         Assert.NotEmpty(durationMeasurements);
         Assert.All(durationMeasurements, duration => Assert.True(duration >= 0, "Duration should be non-negative"));
-        Assert.True(durationMeasurements.Average() >= 15, $"Average duration should be at least 15ms, got {durationMeasurements.Average()}");
+        Assert.True(durationMeasurements.Average() >= 5, $"Average duration should be at least 5ms, got {durationMeasurements.Average()}");
     }
 
     [Fact]
@@ -298,6 +299,7 @@ public class TelemetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var activitiesCollected = new List<Activity>();
         var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
         using var activityListener = new ActivityListener
         {
@@ -314,15 +316,21 @@ public class TelemetryTests
         };
         ActivitySource.AddActivityListener(activityListener);
 
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
-        host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(50), async (CancellationToken token) =>
+        host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(1), async (CancellationToken token) =>
         {
             await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2));
         await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
@@ -368,7 +376,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(30, token);
+            await Task.Delay(10, token);
         }).WithName("tagged-worker");
 
         // Act
@@ -434,12 +442,12 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(30, token);
+            await Task.Delay(10, token);
         }).WithName("worker-alpha");
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(30, token);
+            await Task.Delay(10, token);
         }).WithName("worker-beta");
 
         // Act
@@ -484,7 +492,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.Delay(5, token);
         });
 
         // Act

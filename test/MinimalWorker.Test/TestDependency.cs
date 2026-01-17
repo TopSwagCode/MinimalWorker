@@ -1,9 +1,39 @@
+using Microsoft.Extensions.Time.Testing;
+
 namespace MinimalWorker.Test;
 
 public interface TestDependency
 {
     void Increment();
     void Decrement();
+}
+
+/// <summary>
+/// Helper class for testing workers with FakeTimeProvider.
+/// Advances time automatically to trigger periodic and cron workers without real delays.
+/// </summary>
+public static class WorkerTestHelper
+{
+    /// <summary>
+    /// Creates a FakeTimeProvider with a fixed start time.
+    /// </summary>
+    public static FakeTimeProvider CreateTimeProvider()
+    {
+        return new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    /// <summary>
+    /// Advances time and allows async work to proceed.
+    /// </summary>
+    public static async Task AdvanceTimeAsync(FakeTimeProvider timeProvider, TimeSpan amount, int steps = 10)
+    {
+        var stepSize = TimeSpan.FromTicks(amount.Ticks / steps);
+        for (int i = 0; i < steps; i++)
+        {
+            timeProvider.Advance(stepSize);
+            await Task.Delay(1); // Allow async continuations to run
+        }
+    }
 }
 
 

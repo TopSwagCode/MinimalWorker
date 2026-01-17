@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 
 namespace MinimalWorker.Test;
 
@@ -12,11 +13,13 @@ public class ScopingTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var continuousWorkerIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
         var periodicWorkerIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
         using var host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
                 services.AddScoped<IScopedService, ScopedService>();
+                services.AddSingleton<TimeProvider>(timeProvider);
             })
             .Build();
 
@@ -24,12 +27,12 @@ public class ScopingTests
         host.RunBackgroundWorker(async (IScopedService scopedService, CancellationToken token) =>
         {
             continuousWorkerIds.Add(scopedService.Id);
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Periodic worker - should create new scope per execution
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMinutes(1),
             (IScopedService scopedService, CancellationToken token) =>
             {
                 periodicWorkerIds.Add(scopedService.Id);
@@ -38,16 +41,22 @@ public class ScopingTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(250); // Allow multiple executions
+        
+        // Advance time for periodic worker, continuous worker runs immediately
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
+        
+        // Give continuous worker a bit more real time to accumulate some iterations
+        await Task.Delay(50);
+        
         await host.StopAsync();
 
         // Assert
         // Continuous worker should use same scoped instance across all iterations
-        Assert.True(continuousWorkerIds.Count >= 3, "Continuous worker should execute multiple times");
+        Assert.True(continuousWorkerIds.Count >= 3, $"Continuous worker should execute multiple times, got {continuousWorkerIds.Count}");
         Assert.Single(continuousWorkerIds.Distinct()); // All should be the same ID
 
-        // Periodic worker should get new scoped instance for each execution
-        Assert.True(periodicWorkerIds.Count >= 3, "Periodic worker should execute multiple times");
+        // Periodic worker - 1 min interval for 5 minutes = 4 executions (ticks at 1, 2, 3, 4 min)
+        Assert.Equal(4, periodicWorkerIds.Count);
         Assert.Equal(periodicWorkerIds.Count, periodicWorkerIds.Distinct().Count()); // All unique IDs
     }
 
@@ -69,24 +78,24 @@ public class ScopingTests
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100); // Let continuous workers run
         await host.StopAsync();
 
         // Assert - All three workers should have incremented the shared counter
