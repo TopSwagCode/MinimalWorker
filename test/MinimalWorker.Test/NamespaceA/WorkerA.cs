@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MinimalWorker.Test.Fakes;
 
 namespace MinimalWorker.Test.NamespaceA;
 

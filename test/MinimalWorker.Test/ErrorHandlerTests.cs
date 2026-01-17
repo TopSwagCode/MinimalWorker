@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
 using NSubstitute;
 
 namespace MinimalWorker.Test;
@@ -244,5 +246,114 @@ public class ErrorHandlerTests
 
         await host.StopAsync();
         host.Dispose();
+    }
+
+    [Fact]
+    public async Task ErrorHandler_That_Throws_Should_Not_Crash_Worker()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        BackgroundWorkerExtensions._useEnvironmentExit = false;
+        var workerExecutions = 0;
+        var errorHandlerCallCount = 0;
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+            {
+                Interlocked.Increment(ref workerExecutions);
+                if (workerExecutions <= 3)
+                {
+                    throw new InvalidOperationException("Worker error");
+                }
+                await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+            })
+            .WithErrorHandler(ex =>
+            {
+                Interlocked.Increment(ref errorHandlerCallCount);
+                // Error handler itself throws - this should be handled gracefully
+                throw new InvalidOperationException("Error handler also throws!");
+            });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(TestConstants.StandardTestWindowMs);
+        await host.StopAsync();
+
+        // Assert - Error handler should have been called for each worker error
+        Assert.True(errorHandlerCallCount >= 1, $"Error handler should have been called at least once, got {errorHandlerCallCount}");
+    }
+
+    [Fact]
+    public async Task Multiple_Workers_One_Fails_Others_Continue()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var healthyWorkerExecutions = 0;
+        var failingWorkerExecutions = 0;
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        // Healthy worker that should keep running
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+        {
+            Interlocked.Increment(ref healthyWorkerExecutions);
+            await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+        }).WithName("healthy-worker");
+
+        // Failing worker with error handler
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+            {
+                Interlocked.Increment(ref failingWorkerExecutions);
+                throw new InvalidOperationException("This worker always fails");
+            })
+            .WithName("failing-worker")
+            .WithErrorHandler(ex => { /* Suppress */ });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(TestConstants.StandardTestWindowMs);
+        await host.StopAsync();
+
+        // Assert - Both workers should execute, healthy one continues normally
+        Assert.InRange(healthyWorkerExecutions, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.True(failingWorkerExecutions >= TestConstants.MinContinuousExecutions,
+            $"Failing worker should execute multiple times with error handler, got {failingWorkerExecutions}");
+    }
+
+    [Fact]
+    public async Task OnError_Should_Preserve_InnerException_Details()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        Exception? capturedException = null;
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+            {
+                await Task.CompletedTask;
+                try
+                {
+                    throw new InvalidOperationException("Inner error");
+                }
+                catch (Exception inner)
+                {
+                    throw new ApplicationException("Outer error", inner);
+                }
+            })
+            .WithErrorHandler(ex => capturedException = ex);
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(50);
+        await host.StopAsync();
+
+        // Assert
+        Assert.NotNull(capturedException);
+        Assert.IsType<ApplicationException>(capturedException);
+        Assert.NotNull(capturedException.InnerException);
+        Assert.IsType<InvalidOperationException>(capturedException.InnerException);
+        Assert.Equal("Inner error", capturedException.InnerException.Message);
     }
 }
