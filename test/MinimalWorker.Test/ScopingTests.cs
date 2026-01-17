@@ -55,7 +55,7 @@ public class ScopingTests
         Assert.True(continuousWorkerIds.Count >= 3, $"Continuous worker should execute multiple times, got {continuousWorkerIds.Count}");
         Assert.Single(continuousWorkerIds.Distinct()); // All should be the same ID
 
-        // Periodic worker - 1 min interval for 5 minutes = 4 executions (ticks at 1, 2, 3, 4 min)
+        // Periodic worker - 1 min interval, 5 min window = ticks at 1, 2, 3, 4 min = 4 executions
         Assert.Equal(4, periodicWorkerIds.Count);
         Assert.Equal(periodicWorkerIds.Count, periodicWorkerIds.Distinct().Count()); // All unique IDs
     }

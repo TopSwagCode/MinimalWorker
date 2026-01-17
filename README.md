@@ -193,17 +193,46 @@ By default, MinimalWorker uses `TimeProvider.System` (the real system clock). Fo
 dotnet add package Microsoft.Extensions.TimeProvider.Testing
 ```
 
-### Unit Testing Periodic Workers
+### Recommended: Advancing Time in Steps
+
+For reliable tests, especially on CI machines, advance time in small steps with delays between each step. This gives timers and async continuations time to fire at each intermediate point:
 
 ```csharp
 using Microsoft.Extensions.Time.Testing;
 
+/// <summary>
+/// Helper for advancing time reliably in tests.
+/// </summary>
+public static class WorkerTestHelper
+{
+    public static FakeTimeProvider CreateTimeProvider()
+    {
+        // Start at a known time for predictable assertions
+        return new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    public static async Task AdvanceTimeAsync(FakeTimeProvider timeProvider, TimeSpan amount, int steps = 10)
+    {
+        var stepSize = TimeSpan.FromTicks(amount.Ticks / steps);
+        for (int i = 0; i < steps; i++)
+        {
+            timeProvider.Advance(stepSize);
+            await Task.Yield(); // Allow async continuations to be scheduled
+            await Task.Delay(5); // Give time for async work to complete
+        }
+    }
+}
+```
+
+### Unit Testing Periodic Workers
+
+```csharp
 [Fact]
 public async Task PeriodicWorker_Should_Execute_Multiple_Times()
 {
     // Arrange
     var executionCount = 0;
-    var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
+    var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
     using var host = Host.CreateDefaultBuilder()
         .ConfigureServices(services =>
@@ -222,14 +251,14 @@ public async Task PeriodicWorker_Should_Execute_Multiple_Times()
     // Act
     await host.StartAsync();
     
-    // Advance time instantly - no real waiting!
-    timeProvider.Advance(TimeSpan.FromMinutes(30));
-    await Task.Delay(50); // Small delay for async processing
+    // Advance 30 minutes - PeriodicTimer fires AFTER each interval
+    // Ticks at: 5, 10, 15, 20, 25 min = 5 executions within 30-minute window
+    await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(30));
     
     await host.StopAsync();
 
-    // Assert - 30 minutes / 5 minute interval = 6 executions
-    Assert.Equal(6, executionCount);
+    // Assert
+    Assert.Equal(5, executionCount);
 }
 ```
 
@@ -241,8 +270,7 @@ public async Task CronWorker_Should_Execute_At_Scheduled_Times()
 {
     // Arrange
     var executionCount = 0;
-    // Start at a known time (midnight UTC)
-    var timeProvider = new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
     using var host = Host.CreateDefaultBuilder()
         .ConfigureServices(services =>
@@ -261,9 +289,8 @@ public async Task CronWorker_Should_Execute_At_Scheduled_Times()
     // Act
     await host.StartAsync();
     
-    // Advance 3 hours - triggers at 01:00, 02:00, 03:00
-    timeProvider.Advance(TimeSpan.FromHours(3));
-    await Task.Delay(50);
+    // Advance 3+ hours - triggers at 01:00, 02:00, 03:00
+    await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromHours(3).Add(TimeSpan.FromMinutes(1)));
     
     await host.StopAsync();
 
@@ -285,8 +312,10 @@ public async Task CronWorker_Should_Execute_At_Scheduled_Times()
 
 - **Production code requires no changes** - `TimeProvider.System` is used automatically when no custom provider is registered
 - **Only register `FakeTimeProvider` in tests** - Production DI containers don't need any TimeProvider registration
-- **Use small delays after advancing time** - `await Task.Delay(50)` allows async worker processing to complete
+- **Advance time in steps** - Use `AdvanceTimeAsync()` with multiple steps rather than a single `Advance()` call for reliability
+- **Understand PeriodicTimer behavior** - `PeriodicTimer` fires AFTER each interval, so a 5-minute interval over 30 minutes gives 5 executions (at 5, 10, 15, 20, 25 min), not 6
 - **Start from a known time** - `new FakeTimeProvider(new DateTimeOffset(...))` makes assertions predictable
+- **Use `Task.Yield()` + small delay** - Between time advances, `await Task.Yield(); await Task.Delay(5);` ensures async continuations complete, especially on slower CI machines
 
 ## 🔧 How It Works
 

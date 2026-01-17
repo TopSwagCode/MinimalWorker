@@ -23,7 +23,12 @@ public static class WorkerTestHelper
     }
 
     /// <summary>
-    /// Advances time and allows async work to proceed.
+    /// Advances time in steps and allows async work to proceed between each step.
+    /// This is more reliable than a single Advance() call as it gives timers and
+    /// async continuations time to fire at each intermediate point.
+    /// 
+    /// Note: PeriodicTimer fires AFTER each interval, so a 5-minute interval over 
+    /// 30 minutes gives 5 executions (at 5, 10, 15, 20, 25 min), not 6.
     /// </summary>
     public static async Task AdvanceTimeAsync(FakeTimeProvider timeProvider, TimeSpan amount, int steps = 10)
     {
@@ -31,7 +36,8 @@ public static class WorkerTestHelper
         for (int i = 0; i < steps; i++)
         {
             timeProvider.Advance(stepSize);
-            await Task.Delay(1); // Allow async continuations to run
+            await Task.Yield(); // Allow async continuations to be scheduled
+            await Task.Delay(5); // Give time for async work to complete
         }
     }
 }

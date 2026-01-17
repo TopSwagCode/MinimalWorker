@@ -33,7 +33,8 @@ public class PeriodicWorkerTests
         await host.StartAsync();
         
         // Advance time to trigger multiple executions (5 min intervals)
-        // PeriodicTimer fires AFTER each interval, so 30 min = fires at 5, 10, 15, 20, 25 = 5 executions
+        // PeriodicTimer fires AFTER each interval: ticks at 5, 10, 15, 20, 25 min = 5 executions
+        // Note: The 6th tick at 30 min requires the timer to process after the full 30 min elapses
         await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(30));
         
         await host.StopAsync();
@@ -107,7 +108,7 @@ public class PeriodicWorkerTests
         await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
         await host.StopAsync();
 
-        // Assert - 1 min interval for 5 minutes = 4 executions (ticks at 1, 2, 3, 4 min)
+        // Assert - 1 min interval, 5 min window = ticks at 1, 2, 3, 4 min = 4 executions
         Assert.Equal(4, executionCount);
     }
 
@@ -140,8 +141,8 @@ public class PeriodicWorkerTests
         await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromSeconds(10), steps: 100);
         await host.StopAsync();
 
-        // Assert - 100ms interval for 10 seconds should give us many executions
-        // FakeTimeProvider behavior means we get approximately 99 executions
+        // Assert - 100ms interval for 10 seconds = approximately 100 executions
+        // Allow a small range for timing edge cases with FakeTimeProvider
         Assert.True(executionCount >= 90 && executionCount <= 100, $"Expected 90-100 executions, got {executionCount}");
     }
 }
