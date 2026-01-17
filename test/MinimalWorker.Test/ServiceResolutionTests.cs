@@ -25,7 +25,7 @@ public class ServiceResolutionTests
             {
                 var item = await repo.GetAsync();
                 processedItems.Add(item);
-                await Task.Delay(50, token);
+                await Task.Delay(10, token);
             })
             .WithErrorHandler(ex =>
             {
@@ -34,7 +34,7 @@ public class ServiceResolutionTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100);
         await host.StopAsync();
 
         // Assert
@@ -64,12 +64,12 @@ public class ServiceResolutionTests
         {
             logger.LogInformation("Worker executing at {Time}", DateTime.UtcNow);
             Interlocked.Increment(ref logCount);
-            await Task.Delay(50, token);
+            await Task.Delay(10, token);
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100);
         await host.StopAsync();
 
         // Assert
@@ -89,7 +89,7 @@ public class ServiceResolutionTests
                 services.Configure<WorkerSettings>(options =>
                 {
                     options.Enabled = true;
-                    options.Interval = 50;
+                    options.Interval = 10;
                 });
             })
             .Build();
@@ -105,7 +105,7 @@ public class ServiceResolutionTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200);
+        await Task.Delay(100);
         await host.StopAsync();
 
         // Assert

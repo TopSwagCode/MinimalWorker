@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 namespace MinimalWorker.Test;
@@ -12,15 +13,17 @@ public class PeriodicWorkerTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var counter = Substitute.For<TestDependency>();
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
         using var host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
                 services.AddSingleton(counter);
+                services.AddSingleton<TimeProvider>(timeProvider);
             })
             .Build();
 
-        host.RunPeriodicBackgroundWorker(TimeSpan.FromMilliseconds(50), (TestDependency svc, CancellationToken token) =>
+        host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), (TestDependency svc, CancellationToken token) =>
         {
             svc.Increment();
             return Task.CompletedTask;
@@ -28,12 +31,17 @@ public class PeriodicWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(303); // 3 as buffer
+        
+        // Advance time to trigger multiple executions (5 min intervals)
+        // PeriodicTimer fires AFTER each interval: ticks at 5, 10, 15, 20, 25 min = 5 executions
+        // Note: The 6th tick at 30 min requires the timer to process after the full 30 min elapses
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(30));
+        
         await host.StopAsync();
 
-        // Assert - Use "at least" to avoid flakiness on different machines
+        // Assert - PeriodicTimer fires after each 5 min interval: 5, 10, 15, 20, 25 min = exactly 5 executions
         var callCount = counter.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Increment");
-        Assert.True(callCount >= 5, $"Expected at least 5 Increment calls, got {callCount}");
+        Assert.Equal(5, callCount);
     }
 
     [Fact]
@@ -42,12 +50,17 @@ public class PeriodicWorkerTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var errorWasCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
         using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
             .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMinutes(1),
             () => { throw new InvalidOperationException("Periodic worker error"); })
             .WithErrorHandler(ex =>
             {
@@ -56,7 +69,7 @@ public class PeriodicWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give time for at least one execution
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2));
         await host.StopAsync();
 
         // Assert
@@ -69,8 +82,13 @@ public class PeriodicWorkerTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var executionCount = 0;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
         using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
             .Build();
 
         // Define worker separately to avoid source generator confusion
@@ -81,17 +99,17 @@ public class PeriodicWorkerTests
         };
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMinutes(1),
             worker)
             .WithErrorHandler(ex => { /* Ignore errors */ });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Let it execute a few times
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
         await host.StopAsync();
 
-        // Assert
-        Assert.True(executionCount >= 3, "Periodic worker should execute multiple times");
+        // Assert - 1 min interval, 5 min window = ticks at 1, 2, 3, 4 min = 4 executions
+        Assert.Equal(4, executionCount);
     }
 
     [Fact]
@@ -100,11 +118,17 @@ public class PeriodicWorkerTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var executionCount = 0;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(1), // Very short interval
+            TimeSpan.FromMilliseconds(100),
             (CancellationToken token) =>
             {
                 Interlocked.Increment(ref executionCount);
@@ -114,10 +138,11 @@ public class PeriodicWorkerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100);
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromSeconds(10), steps: 100);
         await host.StopAsync();
 
-        // Assert - Should have many executions
-        Assert.True(executionCount >= 50, $"Expected at least 50 executions with 1ms interval, got {executionCount}");
+        // Assert - 100ms interval for 10 seconds = approximately 100 executions
+        // Allow a small range for timing edge cases with FakeTimeProvider
+        Assert.True(executionCount >= 90 && executionCount <= 100, $"Expected 90-100 executions, got {executionCount}");
     }
 }

@@ -181,6 +181,142 @@ await app.RunAsync();
 
 This ensures you catch configuration errors early, before deploying to production. The validation happens after all services are registered but before workers start executing, using the same dependency resolution mechanism as the workers themselves.
 
+## 🧪 Testing Workers with TimeProvider
+
+MinimalWorker supports .NET's `TimeProvider` abstraction, enabling **instant unit testing** of periodic and CRON workers without waiting for real timers!
+
+### How It Works
+
+By default, MinimalWorker uses `TimeProvider.System` (the real system clock). For testing, simply register a `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing`:
+
+```bash
+dotnet add package Microsoft.Extensions.TimeProvider.Testing
+```
+
+### Recommended: Advancing Time in Steps
+
+For reliable tests, especially on CI machines, advance time in small steps with delays between each step. This gives timers and async continuations time to fire at each intermediate point:
+
+```csharp
+using Microsoft.Extensions.Time.Testing;
+
+/// <summary>
+/// Helper for advancing time reliably in tests.
+/// </summary>
+public static class WorkerTestHelper
+{
+    public static FakeTimeProvider CreateTimeProvider()
+    {
+        // Start at a known time for predictable assertions
+        return new FakeTimeProvider(new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    public static async Task AdvanceTimeAsync(FakeTimeProvider timeProvider, TimeSpan amount, int steps = 10)
+    {
+        var stepSize = TimeSpan.FromTicks(amount.Ticks / steps);
+        for (int i = 0; i < steps; i++)
+        {
+            timeProvider.Advance(stepSize);
+            await Task.Yield(); // Allow async continuations to be scheduled
+            await Task.Delay(5); // Give time for async work to complete
+        }
+    }
+}
+```
+
+### Unit Testing Periodic Workers
+
+```csharp
+[Fact]
+public async Task PeriodicWorker_Should_Execute_Multiple_Times()
+{
+    // Arrange
+    var executionCount = 0;
+    var timeProvider = WorkerTestHelper.CreateTimeProvider();
+
+    using var host = Host.CreateDefaultBuilder()
+        .ConfigureServices(services =>
+        {
+            // Register FakeTimeProvider - this is the only change needed!
+            services.AddSingleton<TimeProvider>(timeProvider);
+        })
+        .Build();
+
+    host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), (CancellationToken token) =>
+    {
+        executionCount++;
+        return Task.CompletedTask;
+    });
+
+    // Act
+    await host.StartAsync();
+    
+    // Advance 30 minutes - PeriodicTimer fires AFTER each interval
+    // Ticks at: 5, 10, 15, 20, 25 min = 5 executions within 30-minute window
+    await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(30));
+    
+    await host.StopAsync();
+
+    // Assert
+    Assert.Equal(5, executionCount);
+}
+```
+
+### Unit Testing CRON Workers
+
+```csharp
+[Fact]
+public async Task CronWorker_Should_Execute_At_Scheduled_Times()
+{
+    // Arrange
+    var executionCount = 0;
+    var timeProvider = WorkerTestHelper.CreateTimeProvider();
+
+    using var host = Host.CreateDefaultBuilder()
+        .ConfigureServices(services =>
+        {
+            services.AddSingleton<TimeProvider>(timeProvider);
+        })
+        .Build();
+
+    // Every hour at minute 0
+    host.RunCronBackgroundWorker("0 * * * *", (CancellationToken token) =>
+    {
+        executionCount++;
+        return Task.CompletedTask;
+    });
+
+    // Act
+    await host.StartAsync();
+    
+    // Advance 3+ hours - triggers at 01:00, 02:00, 03:00
+    await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromHours(3).Add(TimeSpan.FromMinutes(1)));
+    
+    await host.StopAsync();
+
+    // Assert
+    Assert.Equal(3, executionCount);
+}
+```
+
+### Key Benefits
+
+| Without TimeProvider | With TimeProvider |
+|---------------------|-------------------|
+| Test takes 5+ minutes for a 5-min interval | Test completes instantly |
+| CRON tests impossible (1+ min minimum) | CRON tests work instantly |
+| Flaky timing-dependent tests | Deterministic, exact counts |
+| Limited CI/CD testing | Full coverage possible |
+
+### Tips
+
+- **Production code requires no changes** - `TimeProvider.System` is used automatically when no custom provider is registered
+- **Only register `FakeTimeProvider` in tests** - Production DI containers don't need any TimeProvider registration
+- **Advance time in steps** - Use `AdvanceTimeAsync()` with multiple steps rather than a single `Advance()` call for reliability
+- **Understand PeriodicTimer behavior** - `PeriodicTimer` fires AFTER each interval, so a 5-minute interval over 30 minutes gives 5 executions (at 5, 10, 15, 20, 25 min), not 6
+- **Start from a known time** - `new FakeTimeProvider(new DateTimeOffset(...))` makes assertions predictable
+- **Use `Task.Yield()` + small delay** - Between time advances, `await Task.Yield(); await Task.Delay(5);` ensures async continuations complete, especially on slower CI machines
+
 ## 🔧 How It Works
 
 - `RunBackgroundWorker` runs a background task once the application starts, and continues until shutdown.
