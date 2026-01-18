@@ -415,20 +415,22 @@ The `README.llm` file contains:
 When using an AI coding assistant, try prompts like:
 
 ```
-Read the README.llm file in this repository, then help me create a
+Read the https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/refs/heads/master/README.llm, then help me create a
 periodic background worker that sends email notifications every 5 minutes.
 ```
 
 ```
-Using the MinimalWorker library documented in README.llm, create a
+Using the MinimalWorker library documented in https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/refs/heads/master/README.llm, create a
 cron worker that generates daily reports at midnight UTC with proper
 error handling.
 ```
 
 ```
-Based on README.llm, write unit tests for my periodic worker using
+Based on https://raw.githubusercontent.com/TopSwagCode/MinimalWorker/refs/heads/master/README.llm, write unit tests for my periodic worker using
 FakeTimeProvider. The worker runs every 30 seconds.
 ```
+
+[Example ChatGPT prompt](https://chatgpt.com/share/696cee63-727c-800b-9207-557131a7ffa8)
 
 ### Tips for Better Results
 
