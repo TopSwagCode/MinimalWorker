@@ -447,10 +447,20 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("                    try");
         sb.AppendLine("                    {");
-        
+
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
-        sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+
+        // Handle both sync (Action) and async (Func<Task>) delegates
+        if (worker.IsAsync)
+        {
+            sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+        }
+        else
+        {
+            sb.AppendLine($"                        (({delegateType})registration.Action)({paramNames});");
+        }
+
         sb.AppendLine();
         sb.AppendLine("                        MinimalWorkerObservability.ExecutionCounter.Add(1, tags);");
         sb.AppendLine("                        MinimalWorkerObservability.RecordSuccess(workerId);");
@@ -588,10 +598,20 @@ internal static class WorkerEmitter
         }
         
         sb.AppendLine();
-        
+
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
-        sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+
+        // Handle both sync (Action) and async (Func<Task>) delegates
+        if (worker.IsAsync)
+        {
+            sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+        }
+        else
+        {
+            sb.AppendLine($"                        (({delegateType})registration.Action)({paramNames});");
+        }
+
         sb.AppendLine();
         sb.AppendLine("                        MinimalWorkerObservability.ExecutionCounter.Add(1, tags);");
         sb.AppendLine("                        MinimalWorkerObservability.RecordSuccess(workerId);");
@@ -745,10 +765,20 @@ internal static class WorkerEmitter
         }
         
         sb.AppendLine();
-        
+
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
-        sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+
+        // Handle both sync (Action) and async (Func<Task>) delegates
+        if (worker.IsAsync)
+        {
+            sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+        }
+        else
+        {
+            sb.AppendLine($"                        (({delegateType})registration.Action)({paramNames});");
+        }
+
         sb.AppendLine();
         sb.AppendLine("                        MinimalWorkerObservability.ExecutionCounter.Add(1, tags);");
         sb.AppendLine("                        MinimalWorkerObservability.RecordSuccess(workerId);");
@@ -815,6 +845,18 @@ internal static class WorkerEmitter
     private static string GetDelegateType(WorkerInvocationModel worker)
     {
         var paramTypes = string.Join(", ", worker.Parameters.Select(p => p.Type));
+
+        // For synchronous delegates (void return), use Action
+        if (!worker.IsAsync)
+        {
+            if (string.IsNullOrEmpty(paramTypes))
+            {
+                return "Action";
+            }
+            return $"Action<{paramTypes}>";
+        }
+
+        // For asynchronous delegates, use Func with Task return
         if (string.IsNullOrEmpty(paramTypes))
         {
             return $"Func<{worker.ReturnType}>";

@@ -187,16 +187,20 @@ public class WorkerGenerator : IIncrementalGenerator
         model.ReturnType = returnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         // Ensure Task or void for now (simplification)
-        if (model.ReturnType != "void" && 
-            !model.ReturnType.Contains("Task") && 
+        if (model.ReturnType != "void" &&
+            !model.ReturnType.Contains("Task") &&
             !model.ReturnType.Contains("ValueTask"))
         {
             return false;
         }
 
-        // Normalize to Task if void
-        if (model.ReturnType == "void")
+        // For async delegates, keep the Task return type
+        // For sync delegates, keep void (will be handled as Action in emitter)
+        if (model.IsAsync && model.ReturnType == "void")
+        {
+            // This shouldn't happen - async methods should return Task
             model.ReturnType = "System.Threading.Tasks.Task";
+        }
 
         return true;
     }
