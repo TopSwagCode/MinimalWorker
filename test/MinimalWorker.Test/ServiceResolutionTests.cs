@@ -140,11 +140,11 @@ public class ServiceResolutionTests
         await Task.Delay(TestConstants.StandardTestWindowMs);
         await host.StopAsync();
 
-        // Assert - Continuous worker uses same scope for all iterations
-        // Therefore, all instances should be the same (single scope = single transient instance)
+        // Assert - Continuous worker resolves dependencies once at startup and reuses them
+        // across all iterations. The injected service instance is the same object throughout.
         Assert.True(instanceIds.Count >= TestConstants.MinContinuousExecutions,
             $"Expected at least {TestConstants.MinContinuousExecutions} executions, got {instanceIds.Count}");
-        // For continuous workers, transient services within the same scope return the same instance
+        // All iterations use the same injected instance (resolved once when worker started)
         Assert.Single(instanceIds.Distinct());
     }
 }

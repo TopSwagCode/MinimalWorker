@@ -215,11 +215,10 @@ public class PeriodicWorkerTests
             await host.StopAsync();
         });
 
-        // TimeSpan.Zero may throw during timer creation or be handled gracefully
-        // Document whichever behavior occurs
+        // TimeSpan.Zero should throw ArgumentOutOfRangeException from PeriodicTimer
+        Assert.NotNull(exception);
         Assert.True(
-            exception != null ||
-            true, // If no exception, the library handles it gracefully
-            "TimeSpan.Zero should either throw or be handled gracefully");
+            exception is ArgumentOutOfRangeException || exception is ArgumentException,
+            $"Expected ArgumentOutOfRangeException or ArgumentException for zero interval, got {exception.GetType().Name}: {exception.Message}");
     }
 }

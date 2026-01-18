@@ -77,9 +77,10 @@ public static class WorkerTestHelper
 
     /// <summary>
     /// Creates an ActivityListener for capturing telemetry activities.
+    /// IMPORTANT: The caller must dispose the returned Listener when done.
     /// </summary>
     /// <param name="signalOnFirst">If true, signals completion when first activity is captured.</param>
-    /// <returns>A tuple containing the listener, collected activities list, and completion signal.</returns>
+    /// <returns>A tuple containing the listener (must be disposed), collected activities list, and completion signal.</returns>
     public static (ActivityListener Listener, List<Activity> Activities, TaskCompletionSource<bool> Signal)
         CreateActivityCapture(bool signalOnFirst = true)
     {
@@ -109,7 +110,10 @@ public static class WorkerTestHelper
 
     /// <summary>
     /// Creates an ActivityListener that captures stopped activities (useful for checking status codes).
+    /// IMPORTANT: The caller must dispose the returned Listener when done.
     /// </summary>
+    /// <param name="signalCondition">Optional condition to signal when a matching activity is stopped.</param>
+    /// <returns>A tuple containing the listener (must be disposed), collected activities list, and completion signal.</returns>
     public static (ActivityListener Listener, List<Activity> Activities, TaskCompletionSource<bool> Signal)
         CreateActivityStoppedCapture(Func<Activity, bool>? signalCondition = null)
     {

@@ -608,10 +608,17 @@ public class TelemetryTests
 
         await host.StopAsync();
 
-        // Assert - Should have recorded some gauge measurements
-        // Note: The worker.active gauge may or may not be implemented depending on the generated code
-        // This test documents the expected behavior
-        Assert.True(runningMeasurements.Count >= 0,
-            "Gauge should have been recorded (or may not be implemented yet)");
+        // Assert - Verify the gauge mechanism is working
+        // If no measurements were recorded, the worker.active gauge may not be implemented yet
+        // This test will pass if either: gauge is implemented (has measurements), or not yet implemented
+        if (runningMeasurements.Count > 0)
+        {
+            // Gauge is implemented - verify we got measurements for our worker
+            var ourWorkerMeasurements = runningMeasurements.Where(m => m.WorkerName == "gauge-test-worker").ToList();
+            Assert.NotEmpty(ourWorkerMeasurements);
+            // Active gauge should report 1 for a running worker
+            Assert.Contains(ourWorkerMeasurements, m => m.Value == 1);
+        }
+        // If count is 0, the gauge isn't implemented yet - this is acceptable
     }
 }
