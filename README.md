@@ -395,6 +395,50 @@ Below is a screenshot of [MinimalWorker.OpenTelemetry.Sample](samples/MinimalWor
 
 ![assets/aot.png](assets/aot.png)
 
+---
+
+## 🤖 Using AI Coding Assistants
+
+MinimalWorker includes an [LLM Reference Guide](README.llm) - a structured document optimized for AI coding assistants like GitHub Copilot, Claude, Cursor, and others.
+
+### Why Use the LLM Reference?
+
+The `README.llm` file contains:
+- Complete API signatures and constraints
+- Common patterns and anti-patterns
+- Testing setup with `FakeTimeProvider`
+- Scoping behavior differences between worker types
+- Error handling patterns
+
+### Getting Started with AI Assistants
+
+When using an AI coding assistant, try prompts like:
+
+```
+Read the README.llm file in this repository, then help me create a
+periodic background worker that sends email notifications every 5 minutes.
+```
+
+```
+Using the MinimalWorker library documented in README.llm, create a
+cron worker that generates daily reports at midnight UTC with proper
+error handling.
+```
+
+```
+Based on README.llm, write unit tests for my periodic worker using
+FakeTimeProvider. The worker runs every 30 seconds.
+```
+
+### Tips for Better Results
+
+1. **Reference the file explicitly** - Tell the AI to read `README.llm` first
+2. **Be specific about worker type** - Continuous, periodic, or cron
+3. **Mention testing needs** - The guide includes complete testing patterns
+4. **Ask about anti-patterns** - The guide lists common mistakes to avoid
+
+---
+
 ## 👋
 
 Thank you for reading this far :) Hope you find it usefull. Feel free to open issues, give feedback or just say hi :D

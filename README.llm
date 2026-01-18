@@ -1,0 +1,574 @@
+# MinimalWorker - LLM Reference Guide
+
+Version: 3.1.0
+Package: MinimalWorker (NuGet)
+
+## Quick Reference
+
+| Worker Type | Method | Schedule Parameter |
+|-------------|--------|-------------------|
+| Continuous | `RunBackgroundWorker(IHost, Delegate)` | None (you control the loop) |
+| Periodic | `RunPeriodicBackgroundWorker(IHost, TimeSpan, Delegate)` | TimeSpan interval |
+| Cron | `RunCronBackgroundWorker(IHost, string, Delegate)` | Cron expression (UTC) |
+
+All methods return `IWorkerBuilder` for fluent configuration.
+
+---
+
+## Installation
+
+```bash
+dotnet add package MinimalWorker
+```
+
+For testing:
+```bash
+dotnet add package Microsoft.Extensions.TimeProvider.Testing
+```
+
+---
+
+## API Reference
+
+### Extension Methods on IHost
+
+```csharp
+// Continuous worker - runs in a loop until shutdown
+public static IWorkerBuilder RunBackgroundWorker(this IHost host, Delegate action)
+
+// Periodic worker - runs after each interval
+public static IWorkerBuilder RunPeriodicBackgroundWorker(this IHost host, TimeSpan interval, Delegate action)
+
+// Cron worker - runs on cron schedule (UTC time)
+public static IWorkerBuilder RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
+```
+
+### IWorkerBuilder Interface
+
+```csharp
+public interface IWorkerBuilder
+{
+    IWorkerBuilder WithName(string name);
+    IWorkerBuilder WithErrorHandler(Action<Exception> handler);
+}
+```
+
+### Delegate Constraints
+
+| Constraint | Rule |
+|------------|------|
+| Return type | `void`, `Task`, or `ValueTask` only |
+| CancellationToken | Maximum ONE per delegate, auto-injected if present |
+| Parameters | All resolved from DI (except CancellationToken) |
+| Parameter order | Does not matter |
+
+---
+
+## Usage Patterns
+
+### Continuous Worker
+
+Runs in a loop. **You must include the loop and delay yourself.**
+
+```csharp
+app.RunBackgroundWorker(async (MyService service, CancellationToken ct) =>
+{
+    while (!ct.IsCancellationRequested)
+    {
+        await service.ProcessAsync(ct);
+        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+    }
+})
+.WithName("message-processor");
+```
+
+### Periodic Worker
+
+Runs AFTER each interval. **No loop needed - the framework handles repetition.**
+
+```csharp
+app.RunPeriodicBackgroundWorker(
+    TimeSpan.FromMinutes(5),
+    async (CleanupService cleanup, CancellationToken ct) =>
+    {
+        await cleanup.CleanExpiredItemsAsync(ct);
+    })
+.WithName("cleanup-worker");
+```
+
+**IMPORTANT:** A 5-minute interval over 30 minutes results in **6 executions** (at minutes 5, 10, 15, 20, 25, 30).
+
+### Cron Worker
+
+Runs on cron schedule. Uses NCrontab. All times are UTC.
+
+```csharp
+app.RunCronBackgroundWorker(
+    "0 0 * * *",  // Daily at midnight UTC
+    async (ReportService reports, CancellationToken ct) =>
+    {
+        await reports.GenerateDailyReportAsync(ct);
+    })
+.WithName("daily-report");
+```
+
+### Common Cron Expressions
+
+| Expression | Schedule |
+|------------|----------|
+| `* * * * *` | Every minute |
+| `*/5 * * * *` | Every 5 minutes |
+| `0 * * * *` | Every hour at minute 0 |
+| `0 0 * * *` | Daily at midnight |
+| `0 0 * * 0` | Weekly on Sunday at midnight |
+| `0 0 1 * *` | Monthly on the 1st at midnight |
+
+---
+
+## Dependency Injection
+
+### Resolution Rules
+
+1. All delegate parameters (except CancellationToken) are resolved from DI
+2. Missing dependencies cause immediate startup failure (fail-fast)
+3. CancellationToken is automatically injected when present
+
+### Scoping Behavior
+
+| Worker Type | Scope Behavior |
+|-------------|----------------|
+| Continuous | Single scope for entire lifetime (resolved once at start) |
+| Periodic | **New scope per execution** |
+| Cron | **New scope per execution** |
+
+### Example with Multiple Dependencies
+
+```csharp
+app.RunPeriodicBackgroundWorker(
+    TimeSpan.FromMinutes(1),
+    async (ILogger<Program> logger, IRepository repo, IEmailService email, CancellationToken ct) =>
+    {
+        var items = await repo.GetPendingAsync(ct);
+        await email.SendNotificationsAsync(items, ct);
+        logger.LogInformation("Processed {Count} items", items.Count);
+    });
+```
+
+---
+
+## Error Handling
+
+### Default Behavior (No Error Handler)
+
+- Exception is rethrown
+- All workers stop
+- Application terminates with exit code 1
+
+### With Error Handler
+
+- Exception passed to handler
+- Worker continues running
+- `OperationCanceledException` is **ALWAYS** ignored during shutdown
+
+```csharp
+app.RunBackgroundWorker(async (CancellationToken ct) =>
+{
+    await DoRiskyWorkAsync(ct);
+})
+.WithErrorHandler(ex =>
+{
+    Console.WriteLine($"Worker failed: {ex.Message}");
+    // Worker continues after this
+});
+```
+
+### Error Handler DI Limitation
+
+Error handlers do **NOT** support dependency injection. Capture required services at startup:
+
+```csharp
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+app.RunBackgroundWorker(async (CancellationToken ct) =>
+{
+    await DoWorkAsync(ct);
+})
+.WithErrorHandler(ex => logger.LogError(ex, "Worker failed"));
+```
+
+### Fail-Fast Dependency Validation
+
+Dependencies are validated at startup. Missing dependencies cause immediate failure:
+
+```csharp
+// This fails at startup, not at first execution
+app.RunBackgroundWorker((IMissingService missing) =>
+{
+    // Never reached
+});
+// Exit code 1 with clear error message
+```
+
+---
+
+## Testing
+
+### Required Package
+
+```bash
+dotnet add package Microsoft.Extensions.TimeProvider.Testing
+```
+
+### Test Setup Pattern
+
+**CRITICAL:** Always call `BackgroundWorkerExtensions.ClearRegistrations()` before each test.
+
+```csharp
+using Microsoft.Extensions.Time.Testing;
+using MinimalWorker;
+
+public class MyWorkerTests
+{
+    [Fact]
+    public async Task PeriodicWorker_Executes_Expected_Times()
+    {
+        // REQUIRED: Clear registrations between tests
+        BackgroundWorkerExtensions.ClearRegistrations();
+
+        var executionCount = 0;
+        var timeProvider = new FakeTimeProvider(
+            new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
+
+        host.RunPeriodicBackgroundWorker(
+            TimeSpan.FromMinutes(5),
+            (CancellationToken ct) =>
+            {
+                executionCount++;
+                return Task.CompletedTask;
+            });
+
+        await host.StartAsync();
+
+        // Advance time in steps
+        await AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(30));
+
+        await host.StopAsync();
+
+        Assert.Equal(6, executionCount); // Fires at 5, 10, 15, 20, 25, 30 min
+    }
+
+    private static async Task AdvanceTimeAsync(
+        FakeTimeProvider timeProvider,
+        TimeSpan amount,
+        int steps = 10)
+    {
+        var stepSize = TimeSpan.FromTicks(amount.Ticks / steps);
+        for (int i = 0; i < steps; i++)
+        {
+            timeProvider.Advance(stepSize);
+            await Task.Yield();
+            await Task.Delay(5); // Allow async continuations
+        }
+    }
+}
+```
+
+### Testing Cron Workers
+
+```csharp
+[Fact]
+public async Task CronWorker_Executes_On_Schedule()
+{
+    BackgroundWorkerExtensions.ClearRegistrations();
+    var executionCount = 0;
+    var timeProvider = new FakeTimeProvider(
+        new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+    using var host = Host.CreateDefaultBuilder()
+        .ConfigureServices(s => s.AddSingleton<TimeProvider>(timeProvider))
+        .Build();
+
+    host.RunCronBackgroundWorker("0 * * * *", (CancellationToken ct) =>
+    {
+        executionCount++;
+        return Task.CompletedTask;
+    });
+
+    await host.StartAsync();
+    await AdvanceTimeAsync(timeProvider, TimeSpan.FromHours(3), steps: 36);
+    await host.StopAsync();
+
+    Assert.Equal(3, executionCount); // Fires at 01:00, 02:00, 03:00
+}
+```
+
+### Key Testing Rules
+
+1. **Always call `BackgroundWorkerExtensions.ClearRegistrations()`** before each test
+2. **Advance time in multiple steps**, not one large jump
+3. **Include `await Task.Yield()` and `await Task.Delay(5)`** between steps
+4. **PeriodicTimer fires AFTER each interval** (not at time zero)
+5. **Use a fixed start time** for predictable assertions
+
+---
+
+## Observability
+
+### Telemetry Sources
+
+- ActivitySource: `"MinimalWorker"` version `"3.1.0"`
+- Meter: `"MinimalWorker"` version `"3.1.0"`
+
+### OpenTelemetry Configuration
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddSource("MinimalWorker"))
+    .WithMetrics(metrics => metrics.AddMeter("MinimalWorker"));
+```
+
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `worker.executions` | Counter | Total executions |
+| `worker.errors` | Counter | Total errors |
+| `worker.duration` | Histogram | Execution duration (milliseconds) |
+| `worker.active` | Gauge | 1 if running, 0 if stopped |
+| `worker.last_success_time` | Gauge | Unix timestamp of last success |
+| `worker.consecutive_failures` | Gauge | Consecutive failure count (resets on success) |
+
+### Metric Tags/Labels
+
+All metrics include:
+- `worker.id` - Unique numeric ID
+- `worker.name` - User-provided or auto-generated name
+- `worker.type` - `"continuous"`, `"periodic"`, or `"cron"`
+
+Error metrics also include:
+- `exception.type` - Fully qualified exception type name
+
+### Tracing
+
+Each execution creates an Activity span with:
+- Operation name: `worker.execute`
+- Tags: `worker.id`, `worker.name`, `worker.type`
+- Status: `Ok` on success, `Error` on failure (with exception details)
+
+---
+
+## Anti-patterns to Avoid
+
+### DO NOT: Forget to loop in continuous workers
+
+```csharp
+// WRONG - executes once and worker "completes"
+app.RunBackgroundWorker(async (CancellationToken ct) =>
+{
+    await DoWorkAsync(ct);
+});
+
+// CORRECT
+app.RunBackgroundWorker(async (CancellationToken ct) =>
+{
+    while (!ct.IsCancellationRequested)
+    {
+        await DoWorkAsync(ct);
+        await Task.Delay(1000, ct);
+    }
+});
+```
+
+### DO NOT: Add loops to periodic/cron workers
+
+```csharp
+// WRONG - periodic worker already loops
+app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(30), async (CancellationToken ct) =>
+{
+    while (!ct.IsCancellationRequested)  // REMOVE THIS
+    {
+        await DoWorkAsync(ct);
+    }
+});
+
+// CORRECT
+app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(30), async (CancellationToken ct) =>
+{
+    await DoWorkAsync(ct);
+});
+```
+
+### DO NOT: Expect scoped services to reset in continuous workers
+
+```csharp
+// Scoped service is resolved ONCE for continuous worker's entire lifetime
+app.RunBackgroundWorker(async (IScopedService scoped, CancellationToken ct) =>
+{
+    while (!ct.IsCancellationRequested)
+    {
+        // Same instance of 'scoped' for entire worker lifetime
+        await scoped.ProcessAsync(ct);
+    }
+});
+
+// Use periodic worker if you need fresh scopes per execution
+app.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(1), async (IScopedService scoped, CancellationToken ct) =>
+{
+    // Fresh instance each execution
+    await scoped.ProcessAsync(ct);
+});
+```
+
+### DO NOT: Use multiple CancellationTokens
+
+```csharp
+// WRONG - only one CancellationToken allowed
+app.RunBackgroundWorker(async (CancellationToken ct1, CancellationToken ct2) => { });
+
+// CORRECT
+app.RunBackgroundWorker(async (CancellationToken ct) => { });
+```
+
+### DO NOT: Return non-Task types
+
+```csharp
+// WRONG - invalid return types
+app.RunBackgroundWorker(() => 42);
+app.RunBackgroundWorker(() => "result");
+
+// CORRECT - void, Task, or ValueTask only
+app.RunBackgroundWorker(() => { });
+app.RunBackgroundWorker(() => Task.CompletedTask);
+app.RunBackgroundWorker(() => ValueTask.CompletedTask);
+```
+
+### DO NOT: Skip ClearRegistrations in tests
+
+```csharp
+// WRONG - tests pollute each other
+[Fact]
+public async Task Test1()
+{
+    using var host = Host.CreateDefaultBuilder().Build();
+    host.RunBackgroundWorker(...);
+}
+
+// CORRECT
+[Fact]
+public async Task Test1()
+{
+    BackgroundWorkerExtensions.ClearRegistrations();
+    using var host = Host.CreateDefaultBuilder().Build();
+    host.RunBackgroundWorker(...);
+}
+```
+
+### DO NOT: Advance time in one big jump
+
+```csharp
+// WRONG - timers may not fire correctly
+timeProvider.Advance(TimeSpan.FromHours(1));
+
+// CORRECT - advance in steps with yields
+for (int i = 0; i < 12; i++)
+{
+    timeProvider.Advance(TimeSpan.FromMinutes(5));
+    await Task.Yield();
+    await Task.Delay(5);
+}
+```
+
+---
+
+## Complete Example
+
+```csharp
+using MinimalWorker;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Configure OpenTelemetry (optional)
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddSource("MinimalWorker"))
+    .WithMetrics(metrics => metrics.AddMeter("MinimalWorker"));
+
+// Register services
+builder.Services.AddSingleton<IOrderService, OrderService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+var host = builder.Build();
+
+// Continuous worker - you control the loop
+host.RunBackgroundWorker(async (IOrderService orders, ILogger<Program> logger, CancellationToken ct) =>
+{
+    while (!ct.IsCancellationRequested)
+    {
+        var order = await orders.DequeueAsync(ct);
+        if (order != null)
+        {
+            await orders.ProcessAsync(order, ct);
+            logger.LogInformation("Processed order {OrderId}", order.Id);
+        }
+        else
+        {
+            await Task.Delay(1000, ct);
+        }
+    }
+})
+.WithName("order-processor")
+.WithErrorHandler(ex => Console.WriteLine($"Order processing error: {ex.Message}"));
+
+// Periodic worker - framework handles the loop, new scope per execution
+host.RunPeriodicBackgroundWorker(
+    TimeSpan.FromMinutes(5),
+    async (INotificationService notifications, CancellationToken ct) =>
+    {
+        await notifications.CleanupExpiredAsync(ct);
+    })
+.WithName("notification-cleanup");
+
+// Cron worker - runs on schedule (UTC), new scope per execution
+host.RunCronBackgroundWorker(
+    "0 0 * * *",
+    async (IOrderService orders, ILogger<Program> logger, CancellationToken ct) =>
+    {
+        var report = await orders.GenerateDailyReportAsync(ct);
+        logger.LogInformation("Daily report: {OrderCount} orders processed", report.Count);
+    })
+.WithName("daily-report");
+
+await host.RunAsync();
+```
+
+---
+
+## Mental Model
+
+MinimalWorker is best understood as:
+
+> "`MapGet` for background work"
+
+Declarative, minimal, fail-fast, and production-safe.
+
+---
+
+## When to Use
+
+Use MinimalWorker when you need:
+- Background processing without `BackgroundService` boilerplate
+- Predictable startup failures (fail-fast dependency validation)
+- Built-in observability (metrics and tracing)
+- Deterministic testing with `TimeProvider`
+- Native AOT compatibility (source-generated, no reflection)
