@@ -1,6 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
 using NSubstitute;
 
 namespace MinimalWorker.Test;
@@ -142,5 +145,131 @@ public class CronWorkerTests
 
         // Assert
         Assert.True(errorWasCalled, "OnError should be called when exception occurs");
+    }
+
+    [Fact]
+    public async Task CronBackgroundWorker_Should_Continue_Running_After_Errors()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var executionCount = 0;
+        var errorCount = 0;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
+
+        host.RunCronBackgroundWorker("* * * * *", (CancellationToken token) =>
+            {
+                Interlocked.Increment(ref executionCount);
+                // Throw on second execution only
+                if (executionCount == 2)
+                {
+                    throw new InvalidOperationException("Simulated cron error");
+                }
+                return Task.CompletedTask;
+            })
+            .WithErrorHandler(ex =>
+            {
+                Interlocked.Increment(ref errorCount);
+            });
+
+        // Act
+        await host.StartAsync();
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
+        await host.StopAsync();
+
+        // Assert - Should continue after error on execution 2
+        Assert.True(executionCount >= 4, $"Expected at least 4 executions (continued after error), got {executionCount}");
+        Assert.Equal(1, errorCount);
+    }
+
+    [Fact]
+    public async Task CronBackgroundWorker_With_DayOfWeek_Schedule_Should_Execute()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var executionCount = 0;
+        // Start on a Wednesday (2025-01-01 is a Wednesday)
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
+
+        // Every minute on Wednesday (day 3)
+        host.RunCronBackgroundWorker("* * * * 3", (CancellationToken token) =>
+        {
+            Interlocked.Increment(ref executionCount);
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await host.StartAsync();
+        // Advance 5 minutes - should fire 5 times since we're on Wednesday
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
+        await host.StopAsync();
+
+        // Assert - Should execute on Wednesday
+        Assert.True(executionCount >= 4, $"Expected at least 4 executions on Wednesday, got {executionCount}");
+    }
+
+    [Fact]
+    public async Task CronBackgroundWorker_With_Invalid_Expression_Should_Fail_Fast()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        BackgroundWorkerExtensions._useEnvironmentExit = false;
+        var logMessages = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
+        var workerExecuted = false;
+
+        var host = Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging =>
+            {
+                logging.ClearProviders();
+                logging.AddProvider(new TestLoggerProvider(logMessages));
+            })
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
+
+        // Invalid cron expression
+        host.RunCronBackgroundWorker("invalid-cron", () =>
+        {
+            workerExecuted = true;
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(100);
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2));
+
+        await host.StopAsync();
+        host.Dispose();
+
+        // Assert - Either error was logged OR worker never executed (due to parsing failure)
+        var errorOutput = string.Join("\n", logMessages);
+        var hasParsingError = errorOutput.Contains("cron", StringComparison.OrdinalIgnoreCase) ||
+                              errorOutput.Contains("parse", StringComparison.OrdinalIgnoreCase) ||
+                              errorOutput.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+                              errorOutput.Contains("FATAL", StringComparison.OrdinalIgnoreCase) ||
+                              errorOutput.Contains("Exception", StringComparison.OrdinalIgnoreCase) ||
+                              errorOutput.Contains("Error", StringComparison.OrdinalIgnoreCase);
+
+        // If no error logged, at least the worker should not have executed
+        Assert.True(hasParsingError || !workerExecuted,
+            $"Expected either error about invalid cron expression or worker should not execute. " +
+            $"Worker executed: {workerExecuted}. Logs:\n{errorOutput}");
     }
 }

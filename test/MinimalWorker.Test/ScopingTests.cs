@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
 
 namespace MinimalWorker.Test;
 
@@ -52,7 +54,7 @@ public class ScopingTests
 
         // Assert
         // Continuous worker should use same scoped instance across all iterations
-        Assert.True(continuousWorkerIds.Count >= 3, $"Continuous worker should execute multiple times, got {continuousWorkerIds.Count}");
+        Assert.InRange(continuousWorkerIds.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
         Assert.Single(continuousWorkerIds.Distinct()); // All should be the same ID
 
         // Periodic worker - 1 min interval, 5 min window = ticks at 1, 2, 3, 4 min = 4 executions
@@ -99,6 +101,7 @@ public class ScopingTests
         await host.StopAsync();
 
         // Assert - All three workers should have incremented the shared counter
-        Assert.True(sharedCounter.Count >= 9, $"Expected at least 9 increments (3 workers × 3 executions), got {sharedCounter.Count}");
+        // 3 workers × minimum executions each, with upper bound for runaway detection
+        Assert.InRange(sharedCounter.Count, 9, TestConstants.MaxContinuousExecutions * 3);
     }
 }

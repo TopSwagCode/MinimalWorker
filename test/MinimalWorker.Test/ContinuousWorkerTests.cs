@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
 using NSubstitute;
 
 namespace MinimalWorker.Test;
@@ -66,9 +68,9 @@ public class ContinuousWorkerTests
         await Task.Delay(100); // Give worker time to execute multiple times
         await host.StopAsync();
 
-        // Assert - Use "at least" to avoid flakiness on different machines
+        // Assert - Use bounded range to avoid flakiness and detect runaway workers
         var callCount = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Increment");
-        Assert.True(callCount >= 4, $"Expected at least 4 Increment calls, got {callCount}");
+        Assert.InRange(callCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -102,11 +104,11 @@ public class ContinuousWorkerTests
         await Task.Delay(100); // Give worker time to execute multiple times
         await host.StopAsync();
 
-        // Assert - Use "at least" to avoid flakiness on different machines
+        // Assert - Use bounded range to avoid flakiness and detect runaway workers
         var incrementCalls = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Increment");
         var decrementCalls = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Decrement");
-        Assert.True(incrementCalls >= 3, $"Expected at least 3 Increment calls, got {incrementCalls}");
-        Assert.True(decrementCalls >= 2, $"Expected at least 2 Decrement calls, got {decrementCalls}");
+        Assert.InRange(incrementCalls, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(decrementCalls, 2, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -145,8 +147,8 @@ public class ContinuousWorkerTests
 
         // Assert - Verify that the delegation chain works through real classes
         // TestDependency (mock) -> ADependency (real) -> BDependency (real)
-        Assert.True(bDependency.IncrementCount >= 4, $"Expected at least 4 increment calls, but got {bDependency.IncrementCount}");
-        Assert.True(bDependency.DecrementCount >= 4, $"Expected at least 4 decrement calls, but got {bDependency.DecrementCount}");
+        Assert.InRange(bDependency.IncrementCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(bDependency.DecrementCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -193,9 +195,9 @@ public class ContinuousWorkerTests
         await host.StopAsync();
 
         // Assert - Verify that all three workers executed independently
-        Assert.True(serviceA.ExecuteCount >= 4, $"Worker A should execute at least 4 times, but got {serviceA.ExecuteCount}");
-        Assert.True(serviceB.ExecuteCount >= 4, $"Worker B should execute at least 4 times, but got {serviceB.ExecuteCount}");
-        Assert.True(serviceC.ExecuteCount >= 4, $"Worker C should execute at least 4 times, but got {serviceC.ExecuteCount}");
+        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(serviceB.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(serviceC.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -219,7 +221,7 @@ public class ContinuousWorkerTests
         await host.StopAsync();
 
         // Assert
-        Assert.True(counter >= 3, $"Expected at least 3 executions, got {counter}");
+        Assert.InRange(counter, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -251,5 +253,31 @@ public class ContinuousWorkerTests
 
         // Assert
         Assert.False(errorHandlerCalled, "OnError should not be called for OperationCanceledException");
+    }
+
+    [Fact]
+    public async Task BackgroundWorker_Should_Support_Synchronous_Work_In_Async_Context()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var counter = 0;
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        // Synchronous work wrapped in Task (commonly used pattern)
+        host.RunBackgroundWorker((CancellationToken token) =>
+        {
+            Interlocked.Increment(ref counter);
+            Thread.Sleep(TestConstants.StandardWorkerDelayMs); // Synchronous delay
+            return Task.CompletedTask;
+        });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(TestConstants.StandardTestWindowMs);
+        await host.StopAsync();
+
+        // Assert
+        Assert.InRange(counter, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 }

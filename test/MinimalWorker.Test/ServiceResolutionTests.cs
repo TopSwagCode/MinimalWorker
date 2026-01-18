@@ -1,6 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
+using MinimalWorker.Test.TestTypes;
 
 namespace MinimalWorker.Test;
 
@@ -42,7 +45,7 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.True(processedItems.Count >= 3, $"Expected at least 3 items, got {processedItems.Count}");
+        Assert.InRange(processedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
         Assert.All(processedItems, item => Assert.StartsWith("Item_", item));
     }
 
@@ -73,7 +76,7 @@ public class ServiceResolutionTests
         await host.StopAsync();
 
         // Assert
-        Assert.True(logCount >= 3, $"Expected at least 3 log calls, got {logCount}");
+        Assert.InRange(logCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -109,6 +112,39 @@ public class ServiceResolutionTests
         await host.StopAsync();
 
         // Assert
-        Assert.True(executionCount >= 3, $"Expected at least 3 executions with enabled=true, got {executionCount}");
+        Assert.InRange(executionCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+    }
+
+    [Fact]
+    public async Task BackgroundWorker_Should_Resolve_Transient_Services()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var instanceIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddTransient<ITransientService, TransientService>();
+            })
+            .Build();
+
+        host.RunBackgroundWorker(async (ITransientService service, CancellationToken token) =>
+        {
+            instanceIds.Add(service.InstanceId);
+            await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+        });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(TestConstants.StandardTestWindowMs);
+        await host.StopAsync();
+
+        // Assert - Continuous worker resolves dependencies once at startup and reuses them
+        // across all iterations. The injected service instance is the same object throughout.
+        Assert.True(instanceIds.Count >= TestConstants.MinContinuousExecutions,
+            $"Expected at least {TestConstants.MinContinuousExecutions} executions, got {instanceIds.Count}");
+        // All iterations use the same injected instance (resolved once when worker started)
+        Assert.Single(instanceIds.Distinct());
     }
 }

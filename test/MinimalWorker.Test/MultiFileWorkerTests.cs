@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MinimalWorker.Test.Fakes;
+using MinimalWorker.Test.Helpers;
 using MinimalWorker.Test.NamespaceA;
 using MinimalWorker.Test.NamespaceB;
 
@@ -37,8 +39,7 @@ public class MultiFileWorkerTests
 
         // Assert - Both workers should have executed (each calling Execute on the same service)
         // With 2 workers each running every ~40ms for 200ms, we expect at least 6 total executions
-        Assert.True(serviceA.ExecuteCount >= 6,
-            $"Expected at least 6 executions from 2 workers, got {serviceA.ExecuteCount}");
+        Assert.InRange(serviceA.ExecuteCount, 6, TestConstants.MaxContinuousExecutions * 2);
     }
 
     [Fact]
@@ -64,8 +65,7 @@ public class MultiFileWorkerTests
         await host.StopAsync();
 
         // Assert
-        Assert.True(serviceA.ExecuteCount >= 3,
-            $"Expected at least 3 executions, got {serviceA.ExecuteCount}");
+        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 
     [Fact]
@@ -103,9 +103,7 @@ public class MultiFileWorkerTests
         await host.StopAsync();
 
         // Assert - Both workers should have executed
-        Assert.True(serviceA.ExecuteCount >= 3,
-            $"ServiceA expected at least 3 executions, got {serviceA.ExecuteCount}");
-        Assert.True(serviceB.ExecuteCount >= 3,
-            $"ServiceB expected at least 3 executions, got {serviceB.ExecuteCount}");
+        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(serviceB.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
     }
 }
