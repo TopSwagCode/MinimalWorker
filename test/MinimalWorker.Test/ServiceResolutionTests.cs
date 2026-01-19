@@ -153,6 +153,7 @@ public class ServiceResolutionTests
     {
         // Arrange
         // This test verifies that generic services with multiple type arguments (like IConsumer<TKey, TValue>)
+        // are correctly resolved from the DI container and injected into background workers.
         BackgroundWorkerExtensions.ClearRegistrations();
         var consumedItems = new System.Collections.Concurrent.ConcurrentBag<(string Key, string Value)>();
         Exception? workerException = null;
