@@ -229,7 +229,7 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.InRange(consumedItems.Count, 9, 10);
+        Assert.InRange(consumedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
         Assert.All(consumedItems, item =>
         {
             Assert.StartsWith("Key_", item.Key);
