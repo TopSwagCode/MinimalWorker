@@ -32,7 +32,7 @@ public interface IMultipleConsumer<TKey, TValue, TExtra>
 }
 
 /// <summary>
-/// Implementation of IConsumer&lt;string, string&gt; for testing multi-type-argument generics.
+/// Implementation of IMultipleConsumer&lt;string, string, string&gt; for testing multi-type-argument generics.
 /// </summary>
 public class StringStringStringConsumer : IMultipleConsumer<string, string, string>
 {
