@@ -149,7 +149,7 @@ public class ServiceResolutionTests
     }
 
     [Fact]
-    public async Task BackgroundWorker_Should_Resolve_MultiTypeArgument_Generic_Services()
+    public async Task BackgroundWorker_Should_Resolve_MultiTypeArgument_Generic_Services1()
     {
         // Arrange
         // This test verifies that generic services with multiple type arguments (like IConsumer<TKey, TValue>)
@@ -189,7 +189,56 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.InRange(consumedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.InRange(consumedItems.Count, 9, 10);
+        Assert.All(consumedItems, item =>
+        {
+            Assert.StartsWith("Key_", item.Key);
+            Assert.StartsWith("Value_", item.Value);
+        });
+    }
+    
+    [Fact]
+    public async Task BackgroundWorker_Should_Resolve_MultiTypeArgument_Generic_Services2()
+    {
+        // Arrange
+        // This test verifies that generic services with multiple type arguments (like IConsumer<TKey, TValue>)
+        // are correctly matched between compile-time (source generator) and runtime signatures.
+        // The source generator uses ToDisplayString which produces "IConsumer<string, string>" (with space)
+        // while runtime FormatTypeName produces "IConsumer<string,string>" (no space).
+        // This test ensures the signature normalization works correctly.
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var consumedItems = new System.Collections.Concurrent.ConcurrentBag<(string Key, string Value, string Extra)>();
+        Exception? workerException = null;
+
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<IMultipleConsumer<string, string, string>, StringStringStringConsumer>();
+            })
+            .Build();
+
+        host.RunBackgroundWorker(async (IMultipleConsumer<string, string, string> consumer, CancellationToken token) =>
+            {
+                var item = await consumer.ConsumeAsync(token);
+                consumedItems.Add(item);
+                await Task.Delay(10, token);
+            })
+            .WithErrorHandler(ex =>
+            {
+                workerException = ex;
+            });
+
+        // Act
+        await host.StartAsync();
+        await Task.Delay(100);
+        await host.StopAsync();
+
+        // Assert
+        if (workerException != null)
+        {
+            throw new Exception($"Worker failed: {workerException.Message}", workerException);
+        }
+        Assert.InRange(consumedItems.Count, 9, 10);
         Assert.All(consumedItems, item =>
         {
             Assert.StartsWith("Key_", item.Key);
