@@ -316,8 +316,9 @@ internal static class WorkerEmitter
         var workerMap = new Dictionary<string, WorkerInvocationModel>();
         foreach (var worker in workers)
         {
-            // Build signature from worker parameters - strip global:: prefix to match runtime format
-            var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "")));
+            // Build signature from worker parameters - strip global:: prefix and normalize spacing to match runtime format
+            // Runtime uses FormatTypeName which joins generic args with "," (no space), so we must do the same
+            var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "").Replace(", ", ",")));
             var signature = $"{worker.Type}:{paramTypes}";
             
             if (!workerMap.ContainsKey(signature))
