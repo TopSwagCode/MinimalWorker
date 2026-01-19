@@ -153,10 +153,6 @@ public class ServiceResolutionTests
     {
         // Arrange
         // This test verifies that generic services with multiple type arguments (like IConsumer<TKey, TValue>)
-        // are correctly matched between compile-time (source generator) and runtime signatures.
-        // The source generator uses ToDisplayString which produces "IConsumer<string, string>" (with space)
-        // while runtime FormatTypeName produces "IConsumer<string,string>" (no space).
-        // This test ensures the signature normalization works correctly.
         BackgroundWorkerExtensions.ClearRegistrations();
         var consumedItems = new System.Collections.Concurrent.ConcurrentBag<(string Key, string Value)>();
         Exception? workerException = null;
@@ -201,11 +197,6 @@ public class ServiceResolutionTests
     public async Task BackgroundWorker_Should_Resolve_MultiTypeArgument_Generic_Services2()
     {
         // Arrange
-        // This test verifies that generic services with multiple type arguments (like IConsumer<TKey, TValue>)
-        // are correctly matched between compile-time (source generator) and runtime signatures.
-        // The source generator uses ToDisplayString which produces "IConsumer<string, string>" (with space)
-        // while runtime FormatTypeName produces "IConsumer<string,string>" (no space).
-        // This test ensures the signature normalization works correctly.
         BackgroundWorkerExtensions.ClearRegistrations();
         var consumedItems = new System.Collections.Concurrent.ConcurrentBag<(string Key, string Value, string Extra)>();
         Exception? workerException = null;
