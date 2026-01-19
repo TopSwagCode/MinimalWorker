@@ -235,6 +235,7 @@ public class ServiceResolutionTests
         {
             Assert.StartsWith("Key_", item.Key);
             Assert.StartsWith("Value_", item.Value);
+            Assert.StartsWith("Extra_", item.Extra);
         });
     }
 }
