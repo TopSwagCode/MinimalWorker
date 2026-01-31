@@ -25,11 +25,11 @@ public class ScopingTests
             })
             .Build();
 
-        // Continuous worker - should reuse same scope for all iterations
+        // Continuous worker - runs exactly once with a single scope
         host.RunBackgroundWorker(async (IScopedService scopedService, CancellationToken token) =>
         {
             continuousWorkerIds.Add(scopedService.Id);
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Periodic worker - should create new scope per execution
@@ -43,19 +43,19 @@ public class ScopingTests
 
         // Act
         await host.StartAsync();
-        
-        // Advance time for periodic worker, continuous worker runs immediately
+
+        // Advance time for periodic worker
         await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(5));
-        
-        // Give continuous worker a bit more real time to accumulate some iterations
+
+        // Give continuous worker time to complete
         await Task.Delay(50);
-        
+
         await host.StopAsync();
 
         // Assert
-        // Continuous worker should use same scoped instance across all iterations
-        Assert.InRange(continuousWorkerIds.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.Single(continuousWorkerIds.Distinct()); // All should be the same ID
+        // Continuous worker runs exactly once with a single scope
+        Assert.Equal(1, continuousWorkerIds.Count);
+        Assert.Single(continuousWorkerIds.Distinct());
 
         // Periodic worker - 1 min interval, 5 min window = ticks at 1, 2, 3, 4 min = 4 executions
         Assert.Equal(4, periodicWorkerIds.Count);
@@ -80,28 +80,28 @@ public class ScopingTests
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         host.RunBackgroundWorker(async (ThreadSafeCounter counter, CancellationToken token) =>
         {
             counter.Increment();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Let continuous workers run
+        await Task.Delay(100); // Let continuous workers complete
         await host.StopAsync();
 
-        // Assert - All three workers should have incremented the shared counter
-        // 3 workers × minimum executions each, with upper bound for runaway detection
-        Assert.InRange(sharedCounter.Count, 9, TestConstants.MaxContinuousExecutions * 3);
+        // Assert - Each continuous worker runs exactly once
+        // 3 workers × 1 execution each = 3 total increments
+        Assert.Equal(3, sharedCounter.Count);
     }
 }

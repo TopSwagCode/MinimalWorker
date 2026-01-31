@@ -9,6 +9,38 @@ namespace MinimalWorker.Test;
 public class ContinuousWorkerTests
 {
     [Fact]
+    public async Task BackgroundWorker_Should_Execute_Exactly_Once()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+        var executionCount = 0;
+        var executionCompleted = new TaskCompletionSource<bool>();
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        host.RunBackgroundWorker(async (CancellationToken token) =>
+        {
+            Interlocked.Increment(ref executionCount);
+            executionCompleted.TrySetResult(true);
+            await Task.CompletedTask;
+        });
+
+        // Act
+        await host.StartAsync();
+
+        // Wait for the worker to complete its single execution
+        await executionCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Give extra time to prove it doesn't run again
+        await Task.Delay(200);
+
+        await host.StopAsync();
+
+        // Assert - Worker runs exactly once, not in a loop
+        Assert.Equal(1, executionCount);
+    }
+
+    [Fact]
     public async Task BackgroundWorker_Should_Respect_CancellationToken()
     {
         // Arrange
@@ -60,17 +92,17 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Increment();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give worker time to execute
         await host.StopAsync();
 
-        // Assert - Use bounded range to avoid flakiness and detect runaway workers
+        // Assert - Continuous worker runs exactly once (user controls looping)
         var callCount = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Increment");
-        Assert.InRange(callCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.Equal(1, callCount);
     }
 
     [Fact]
@@ -90,25 +122,25 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Increment();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         host.RunBackgroundWorker(async (TestDependency myService, CancellationToken token) =>
         {
             myService.Decrement();
-            await Task.Delay(20, token);
+            await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give workers time to execute
         await host.StopAsync();
 
-        // Assert - Use bounded range to avoid flakiness and detect runaway workers
+        // Assert - Each continuous worker runs exactly once
         var incrementCalls = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Increment");
         var decrementCalls = service.ReceivedCalls().Count(c => c.GetMethodInfo().Name == "Decrement");
-        Assert.InRange(incrementCalls, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.InRange(decrementCalls, 2, TestConstants.MaxContinuousExecutions);
+        Assert.Equal(1, incrementCalls);
+        Assert.Equal(1, decrementCalls);
     }
 
     [Fact]
@@ -137,18 +169,19 @@ public class ContinuousWorkerTests
         {
             myService.Increment(); // -> aDependency.Increment() -> bDependency.Increment()
             myService.Decrement(); // -> aDependency.Decrement() -> bDependency.Decrement()
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give worker time to execute multiple times
+        await Task.Delay(100); // Give worker time to execute
         await host.StopAsync();
 
         // Assert - Verify that the delegation chain works through real classes
         // TestDependency (mock) -> ADependency (real) -> BDependency (real)
-        Assert.InRange(bDependency.IncrementCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.InRange(bDependency.DecrementCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Continuous worker runs exactly once
+        Assert.Equal(1, bDependency.IncrementCount);
+        Assert.Equal(1, bDependency.DecrementCount);
     }
 
     [Fact]
@@ -174,30 +207,30 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async (IServiceA svcA, CancellationToken token) =>
         {
             svcA.Execute();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         host.RunBackgroundWorker(async (IServiceB svcB, CancellationToken token) =>
         {
             svcB.Execute();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         host.RunBackgroundWorker(async (IServiceC svcC, CancellationToken token) =>
         {
             svcC.Execute();
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give workers time to execute multiple times
+        await Task.Delay(100); // Give workers time to execute
         await host.StopAsync();
 
-        // Assert - Verify that all three workers executed independently
-        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.InRange(serviceB.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.InRange(serviceC.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Each continuous worker runs exactly once
+        Assert.Equal(1, serviceA.ExecuteCount);
+        Assert.Equal(1, serviceB.ExecuteCount);
+        Assert.Equal(1, serviceC.ExecuteCount);
     }
 
     [Fact]
@@ -212,7 +245,7 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker(async () =>
         {
             Interlocked.Increment(ref counter);
-            await Task.Delay(10);
+            await Task.CompletedTask;
         });
 
         // Act
@@ -220,8 +253,8 @@ public class ContinuousWorkerTests
         await Task.Delay(100);
         await host.StopAsync();
 
-        // Assert
-        Assert.InRange(counter, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Continuous worker runs exactly once
+        Assert.Equal(1, counter);
     }
 
     [Fact]
@@ -268,7 +301,6 @@ public class ContinuousWorkerTests
         host.RunBackgroundWorker((CancellationToken token) =>
         {
             Interlocked.Increment(ref counter);
-            Thread.Sleep(TestConstants.StandardWorkerDelayMs); // Synchronous delay
             return Task.CompletedTask;
         });
 
@@ -277,7 +309,7 @@ public class ContinuousWorkerTests
         await Task.Delay(TestConstants.StandardTestWindowMs);
         await host.StopAsync();
 
-        // Assert
-        Assert.InRange(counter, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Continuous worker runs exactly once
+        Assert.Equal(1, counter);
     }
 }

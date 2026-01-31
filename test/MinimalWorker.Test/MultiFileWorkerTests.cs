@@ -37,9 +37,8 @@ public class MultiFileWorkerTests
         await Task.Delay(200);
         await host.StopAsync();
 
-        // Assert - Both workers should have executed (each calling Execute on the same service)
-        // With 2 workers each running every ~40ms for 200ms, we expect at least 6 total executions
-        Assert.InRange(serviceA.ExecuteCount, 6, TestConstants.MaxContinuousExecutions * 2);
+        // Assert - Both workers should have executed exactly once each
+        Assert.Equal(2, serviceA.ExecuteCount);
     }
 
     [Fact]
@@ -64,8 +63,8 @@ public class MultiFileWorkerTests
         await Task.Delay(150);
         await host.StopAsync();
 
-        // Assert
-        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Continuous worker runs exactly once
+        Assert.Equal(1, serviceA.ExecuteCount);
     }
 
     [Fact]
@@ -88,13 +87,13 @@ public class MultiFileWorkerTests
         host.RunBackgroundWorker(async (IServiceA svc, CancellationToken token) =>
         {
             svc.Execute();
-            await Task.Delay(40, token);
+            await Task.CompletedTask;
         }).WithName("inline-worker-A");
 
         host.RunBackgroundWorker(async (IServiceB svc, CancellationToken token) =>
         {
             svc.Execute();
-            await Task.Delay(40, token);
+            await Task.CompletedTask;
         }).WithName("inline-worker-B");
 
         // Act
@@ -102,8 +101,8 @@ public class MultiFileWorkerTests
         await Task.Delay(200);
         await host.StopAsync();
 
-        // Assert - Both workers should have executed
-        Assert.InRange(serviceA.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.InRange(serviceB.ExecuteCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Each continuous worker runs exactly once
+        Assert.Equal(1, serviceA.ExecuteCount);
+        Assert.Equal(1, serviceB.ExecuteCount);
     }
 }

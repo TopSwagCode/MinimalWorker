@@ -80,7 +80,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(5, token);
+            await Task.CompletedTask;
         }).WithName("test-worker");
 
         // Act
@@ -93,7 +93,8 @@ public class TelemetryTests
         var activity = activitiesCollected.First();
         Assert.Equal("test-worker", activity.GetTagItem("worker.name"));
         Assert.Equal("continuous", activity.GetTagItem("worker.type"));
-        Assert.Equal(1L, activity.GetTagItem("worker.iteration"));
+        // Continuous workers run once, no iteration tracking
+        Assert.NotNull(activity.GetTagItem("worker.id"));
     }
 
     [Fact]
@@ -149,7 +150,6 @@ public class TelemetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var executionMeasurements = new List<long>();
         var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        const int targetCount = 3;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -164,10 +164,7 @@ public class TelemetryTests
             lock (executionMeasurements)
             {
                 executionMeasurements.Add(measurement);
-                if (executionMeasurements.Sum() >= targetCount)
-                {
-                    signal.TrySetResult(true);
-                }
+                signal.TrySetResult(true);
             }
         });
         meterListener.Start();
@@ -176,7 +173,7 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
@@ -185,9 +182,9 @@ public class TelemetryTests
         meterListener.RecordObservableInstruments();
         await host.StopAsync();
 
-        // Assert
+        // Assert - Continuous worker runs exactly once
         Assert.NotEmpty(executionMeasurements);
-        Assert.True(executionMeasurements.Sum() >= 3, $"Expected at least 3 executions, got {executionMeasurements.Sum()}");
+        Assert.Equal(1, executionMeasurements.Sum());
     }
 
     [Fact]
@@ -252,7 +249,6 @@ public class TelemetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var durationMeasurements = new List<double>();
         var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        const int targetCount = 3;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -267,10 +263,7 @@ public class TelemetryTests
             lock (durationMeasurements)
             {
                 durationMeasurements.Add(measurement);
-                if (durationMeasurements.Count >= targetCount)
-                {
-                    signal.TrySetResult(true);
-                }
+                signal.TrySetResult(true);
             }
         });
         meterListener.Start();
@@ -287,10 +280,10 @@ public class TelemetryTests
         await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
-        // Assert
-        Assert.NotEmpty(durationMeasurements);
-        Assert.All(durationMeasurements, duration => Assert.True(duration >= 0, "Duration should be non-negative"));
-        Assert.True(durationMeasurements.Average() >= 5, $"Average duration should be at least 5ms, got {durationMeasurements.Average()}");
+        // Assert - Continuous worker runs exactly once, so one duration measurement
+        Assert.Single(durationMeasurements);
+        Assert.True(durationMeasurements[0] >= 0, "Duration should be non-negative");
+        Assert.True(durationMeasurements[0] >= 5, $"Duration should be at least 5ms, got {durationMeasurements[0]}");
     }
 
     [Fact]
@@ -400,7 +393,6 @@ public class TelemetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var workerExecutions = new Dictionary<string, int>();
         var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        const int targetCountPerWorker = 2;
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -428,9 +420,9 @@ public class TelemetryTests
                     workerExecutions.TryGetValue(workerName, out var count);
                     workerExecutions[workerName] = count + 1;
 
-                    // Signal when both workers have reached target count
-                    if (workerExecutions.TryGetValue("worker-alpha", out var alphaCount) && alphaCount >= targetCountPerWorker &&
-                        workerExecutions.TryGetValue("worker-beta", out var betaCount) && betaCount >= targetCountPerWorker)
+                    // Signal when both workers have executed once
+                    if (workerExecutions.TryGetValue("worker-alpha", out var alphaCount) && alphaCount >= 1 &&
+                        workerExecutions.TryGetValue("worker-beta", out var betaCount) && betaCount >= 1)
                     {
                         signal.TrySetResult(true);
                     }
@@ -443,12 +435,12 @@ public class TelemetryTests
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         }).WithName("worker-alpha");
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         }).WithName("worker-beta");
 
         // Act
@@ -456,11 +448,11 @@ public class TelemetryTests
         await signal.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await host.StopAsync();
 
-        // Assert
+        // Assert - Each continuous worker runs exactly once
         Assert.True(workerExecutions.ContainsKey("worker-alpha"), "Should track worker-alpha");
         Assert.True(workerExecutions.ContainsKey("worker-beta"), "Should track worker-beta");
-        Assert.True(workerExecutions["worker-alpha"] >= 2, $"worker-alpha should have at least 2 executions, got {workerExecutions["worker-alpha"]}");
-        Assert.True(workerExecutions["worker-beta"] >= 2, $"worker-beta should have at least 2 executions, got {workerExecutions["worker-beta"]}");
+        Assert.Equal(1, workerExecutions["worker-alpha"]);
+        Assert.Equal(1, workerExecutions["worker-beta"]);
     }
 
     [Fact]
@@ -564,6 +556,8 @@ public class TelemetryTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var gaugeMeasurements = new List<(int Value, string? WorkerName)>();
+        var workerStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workerCanComplete = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var meterListener = new MeterListener();
         meterListener.InstrumentPublished = (instrument, listener) =>
@@ -593,19 +587,24 @@ public class TelemetryTests
 
         using var host = Host.CreateDefaultBuilder().Build();
 
+        // Continuous worker that waits for signal to complete, so we can measure while running
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
-            await Task.Delay(10, token);
+            workerStarted.TrySetResult(true);
+            await workerCanComplete.Task.WaitAsync(token);
         }).WithName("gauge-test-worker");
 
         // Act
         await host.StartAsync();
-        await Task.Delay(50);
+        await workerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(50); // Let worker register
         meterListener.RecordObservableInstruments();
 
         // Capture measurements while running
         var runningMeasurements = gaugeMeasurements.ToList();
 
+        // Let worker complete
+        workerCanComplete.TrySetResult(true);
         await host.StopAsync();
 
         // Assert - Verify the gauge mechanism is working

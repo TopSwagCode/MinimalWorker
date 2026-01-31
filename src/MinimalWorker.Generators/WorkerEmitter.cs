@@ -378,11 +378,11 @@ internal static class WorkerEmitter
     private static void EmitContinuousWorkerInit(StringBuilder sb, WorkerInvocationModel worker)
     {
         var delegateType = GetDelegateType(worker);
-        
+
         sb.AppendLine("        // Validate dependencies exist before starting worker (fail-fast)");
         sb.AppendLine("        using (var validationScope = host.Services.CreateScope())");
         sb.AppendLine("        {");
-        
+
         // Validate all dependencies can be resolved
         foreach (var param in worker.Parameters)
         {
@@ -391,7 +391,7 @@ internal static class WorkerEmitter
                 sb.AppendLine($"            _ = validationScope.ServiceProvider.GetRequiredService<{param.Type}>();");
             }
         }
-        
+
         sb.AppendLine("        }");
         sb.AppendLine();
         sb.AppendLine("        // Start worker immediately - host has already started");
@@ -399,7 +399,7 @@ internal static class WorkerEmitter
         sb.AppendLine("        _ = Task.Run(async () =>");
         sb.AppendLine("        {");
         sb.AppendLine("            using var scope = host.Services.CreateScope();");
-        
+
         // Generate DI resolution
         foreach (var param in worker.Parameters)
         {
@@ -412,11 +412,10 @@ internal static class WorkerEmitter
                 sb.AppendLine($"            var {param.Name} = scope.ServiceProvider.GetRequiredService<{param.Type}>();");
             }
         }
-        
+
         sb.AppendLine();
         sb.AppendLine("            var workerId = registration.Id.ToString();");
         sb.AppendLine("            var workerName = registration.DisplayName;");
-        sb.AppendLine("            var iteration = 0L;");
         sb.AppendLine();
         sb.AppendLine("            // Get logger for structured logging");
         sb.AppendLine("            var workerLogger = scope.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger($\"MinimalWorker.{workerName}\");");
@@ -427,27 +426,22 @@ internal static class WorkerEmitter
         sb.AppendLine("            // Log worker started");
         sb.AppendLine("            if (workerLogger != null) WorkerLogMessages.WorkerStarted(workerLogger, workerName, \"continuous\", workerId, null);");
         sb.AppendLine();
+        sb.AppendLine("            var tags = new TagList");
+        sb.AppendLine("            {");
+        sb.AppendLine("                { \"worker.id\", workerId },");
+        sb.AppendLine("                { \"worker.name\", workerName },");
+        sb.AppendLine("                { \"worker.type\", \"continuous\" }");
+        sb.AppendLine("            };");
+        sb.AppendLine();
+        sb.AppendLine("            using var activity = MinimalWorkerObservability.ActivitySource.StartActivity(\"worker.execute\");");
+        sb.AppendLine("            activity?.SetTag(\"worker.id\", workerId);");
+        sb.AppendLine("            activity?.SetTag(\"worker.name\", workerName);");
+        sb.AppendLine("            activity?.SetTag(\"worker.type\", \"continuous\");");
+        sb.AppendLine();
+        sb.AppendLine("            var stopwatch = Stopwatch.StartNew();");
+        sb.AppendLine();
         sb.AppendLine("            try");
         sb.AppendLine("            {");
-        sb.AppendLine("                var tags = new TagList");
-        sb.AppendLine("                {");
-        sb.AppendLine("                    { \"worker.id\", workerId },");
-        sb.AppendLine("                    { \"worker.name\", workerName },");
-        sb.AppendLine("                    { \"worker.type\", \"continuous\" }");
-        sb.AppendLine("                };");
-        sb.AppendLine("                while (!token.IsCancellationRequested)");
-        sb.AppendLine("                {");
-        sb.AppendLine("                    iteration++;");
-        sb.AppendLine("                    using var activity = MinimalWorkerObservability.ActivitySource.StartActivity(\"worker.execute\");");
-        sb.AppendLine("                    activity?.SetTag(\"worker.id\", workerId);");
-        sb.AppendLine("                    activity?.SetTag(\"worker.name\", workerName);");
-        sb.AppendLine("                    activity?.SetTag(\"worker.type\", \"continuous\");");
-        sb.AppendLine("                    activity?.SetTag(\"worker.iteration\", iteration);");
-        sb.AppendLine();
-        sb.AppendLine("                    var stopwatch = Stopwatch.StartNew();");
-        sb.AppendLine();
-        sb.AppendLine("                    try");
-        sb.AppendLine("                    {");
 
         // Invoke the delegate
         var paramNames = string.Join(", ", worker.Parameters.Select(p => p.Name));
@@ -455,66 +449,60 @@ internal static class WorkerEmitter
         // Handle both sync (Action) and async (Func<Task>) delegates
         if (worker.IsAsync)
         {
-            sb.AppendLine($"                        await (({delegateType})registration.Action)({paramNames});");
+            sb.AppendLine($"                await (({delegateType})registration.Action)({paramNames});");
         }
         else
         {
-            sb.AppendLine($"                        (({delegateType})registration.Action)({paramNames});");
+            sb.AppendLine($"                (({delegateType})registration.Action)({paramNames});");
         }
 
         sb.AppendLine();
-        sb.AppendLine("                        MinimalWorkerObservability.ExecutionCounter.Add(1, tags);");
-        sb.AppendLine("                        MinimalWorkerObservability.RecordSuccess(workerId);");
-        sb.AppendLine("                        activity?.SetStatus(ActivityStatusCode.Ok);");
+        sb.AppendLine("                MinimalWorkerObservability.ExecutionCounter.Add(1, tags);");
+        sb.AppendLine("                MinimalWorkerObservability.RecordSuccess(workerId);");
+        sb.AppendLine("                activity?.SetStatus(ActivityStatusCode.Ok);");
 
-        sb.AppendLine("                    }");
-        sb.AppendLine("                    catch (OperationCanceledException)");
-        sb.AppendLine("                    {");
-        sb.AppendLine("                        // Graceful shutdown - exit without error");
-        sb.AppendLine("                        activity?.SetStatus(ActivityStatusCode.Ok);");
-        sb.AppendLine("                        break;");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                    catch (Exception ex)");
-        sb.AppendLine("                    {");
-        sb.AppendLine("                        activity?.SetStatus(ActivityStatusCode.Error, ex.Message);");
-        sb.AppendLine("                        activity?.RecordException(ex);");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (OperationCanceledException)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                // Graceful shutdown - exit without error");
+        sb.AppendLine("                activity?.SetStatus(ActivityStatusCode.Ok);");
+        sb.AppendLine("            }");
+        sb.AppendLine("            catch (Exception ex)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);");
+        sb.AppendLine("                activity?.RecordException(ex);");
         sb.AppendLine();
-        sb.AppendLine("                        var errorTags = new TagList");
-        sb.AppendLine("                        {");
-        sb.AppendLine("                            { \"worker.id\", workerId },");
-        sb.AppendLine("                            { \"worker.name\", workerName },");
-        sb.AppendLine("                            { \"worker.type\", \"continuous\" },");
-        sb.AppendLine("                            { \"exception.type\", ex.GetType().FullName }");
-        sb.AppendLine("                        };");
-        sb.AppendLine("                        MinimalWorkerObservability.ErrorCounter.Add(1, errorTags);");
-        sb.AppendLine("                        MinimalWorkerObservability.RecordFailure(workerId);");
+        sb.AppendLine("                var errorTags = new TagList");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    { \"worker.id\", workerId },");
+        sb.AppendLine("                    { \"worker.name\", workerName },");
+        sb.AppendLine("                    { \"worker.type\", \"continuous\" },");
+        sb.AppendLine("                    { \"exception.type\", ex.GetType().FullName }");
+        sb.AppendLine("                };");
+        sb.AppendLine("                MinimalWorkerObservability.ErrorCounter.Add(1, errorTags);");
+        sb.AppendLine("                MinimalWorkerObservability.RecordFailure(workerId);");
         sb.AppendLine();
-        sb.AppendLine("                        // Log error");
-        sb.AppendLine("                        if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailedWithIteration(workerLogger, workerName, iteration, ex);");
+        sb.AppendLine("                // Log error");
+        sb.AppendLine("                if (workerLogger != null) WorkerLogMessages.WorkerExecutionFailed(workerLogger, workerName, ex);");
         sb.AppendLine();
-        sb.AppendLine("                        if (registration.OnError != null)");
-        sb.AppendLine("                        {");
-        sb.AppendLine("                            registration.OnError(ex);");
-        sb.AppendLine("                        }");
-        sb.AppendLine("                        else");
-        sb.AppendLine("                        {");
-        sb.AppendLine("                            // No error handler provided - crash the app (fail-fast)");
-        sb.AppendLine("                            if (workerLogger != null) WorkerLogMessages.WorkerFatalError(workerLogger, workerName, ex);");
-        sb.AppendLine("                            ");
-        sb.AppendLine("                            // Terminate the application immediately");
-        sb.AppendLine("                            BackgroundWorkerExtensions.TerminateOnFatalError(ex);");
-        sb.AppendLine("                        }");
-        sb.AppendLine("                    }");
-        sb.AppendLine("                    finally");
-        sb.AppendLine("                    {");
-        sb.AppendLine("                        stopwatch.Stop();");
-        sb.AppendLine("                        MinimalWorkerObservability.DurationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, tags);");
-        sb.AppendLine("                    }");
+        sb.AppendLine("                if (registration.OnError != null)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    registration.OnError(ex);");
+        sb.AppendLine("                }");
+        sb.AppendLine("                else");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    // No error handler provided - crash the app (fail-fast)");
+        sb.AppendLine("                    if (workerLogger != null) WorkerLogMessages.WorkerFatalError(workerLogger, workerName, ex);");
+        sb.AppendLine("                    ");
+        sb.AppendLine("                    // Terminate the application immediately");
+        sb.AppendLine("                    BackgroundWorkerExtensions.TerminateOnFatalError(ex);");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine("            finally");
         sb.AppendLine("            {");
-        sb.AppendLine("                // Deactivate worker when it stops");
+        sb.AppendLine("                stopwatch.Stop();");
+        sb.AppendLine("                MinimalWorkerObservability.DurationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, tags);");
+        sb.AppendLine("                // Deactivate worker when it completes");
         sb.AppendLine("                MinimalWorkerObservability.DeactivateWorker(workerId);");
         sb.AppendLine("                if (workerLogger != null) WorkerLogMessages.WorkerStopped(workerLogger, workerName, \"continuous\", workerId, null);");
         sb.AppendLine("            }");
