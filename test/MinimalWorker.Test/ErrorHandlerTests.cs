@@ -21,15 +21,10 @@ public class ErrorHandlerTests
         using var host = Host.CreateDefaultBuilder()
             .Build();
 
-        var executionCount = 0;
         host.RunBackgroundWorker(async (CancellationToken token) =>
             {
-                executionCount++;
-                if (executionCount <= 2) // Throw on first 2 executions
-                {
-                    throw new InvalidOperationException(expectedMessage);
-                }
-                await Task.Delay(10, token);
+                await Task.CompletedTask;
+                throw new InvalidOperationException(expectedMessage);
             })
             .WithErrorHandler(ex =>
             {
@@ -39,15 +34,14 @@ public class ErrorHandlerTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(100); // Give time for worker to execute multiple times
+        await Task.Delay(100); // Give time for worker to execute
         await host.StopAsync();
 
-        // Assert
-        Assert.Equal(2, exceptionCount);
+        // Assert - Continuous worker runs once and throws once
+        Assert.Equal(1, exceptionCount);
         Assert.NotNull(capturedException);
         Assert.IsType<InvalidOperationException>(capturedException);
         Assert.Equal(expectedMessage, capturedException.Message);
-        Assert.True(executionCount > 2, "Worker should continue running after errors");
     }
 
     [Fact]
@@ -83,21 +77,15 @@ public class ErrorHandlerTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var errors = new List<Exception>();
-        var expectedMessages = new[] { "Error 1", "Error 2", "Error 3" };
+        var expectedMessage = "Error 1";
 
         using var host = Host.CreateDefaultBuilder()
             .Build();
 
-        var executionCount = 0;
         host.RunBackgroundWorker(async (CancellationToken token) =>
             {
-                if (executionCount < expectedMessages.Length)
-                {
-                    var message = expectedMessages[executionCount];
-                    executionCount++;
-                    throw new InvalidOperationException(message);
-                }
-                await Task.Delay(10, token);
+                await Task.CompletedTask;
+                throw new InvalidOperationException(expectedMessage);
             })
             .WithErrorHandler(ex =>
             {
@@ -109,12 +97,9 @@ public class ErrorHandlerTests
         await Task.Delay(100);
         await host.StopAsync();
 
-        // Assert
-        Assert.Equal(3, errors.Count);
-        for (int i = 0; i < expectedMessages.Length; i++)
-        {
-            Assert.Equal(expectedMessages[i], errors[i].Message);
-        }
+        // Assert - Continuous worker runs once and throws once
+        Assert.Single(errors);
+        Assert.Equal(expectedMessage, errors[0].Message);
     }
 
     [Fact]
@@ -217,21 +202,18 @@ public class ErrorHandlerTests
             })
             .Build();
 
-        // Worker that throws an exception on second execution
+        // Worker that throws an exception immediately
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
             executionCount++;
-            if (executionCount >= 2)
-            {
-                throw new InvalidOperationException("Simulated runtime error");
-            }
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
+            throw new InvalidOperationException("Simulated runtime error");
         });
 
         // Act
         await host.StartAsync();
 
-        // Give time for the worker to execute twice and throw
+        // Give time for the worker to execute and throw
         await Task.Delay(100);
 
         // Assert
@@ -242,7 +224,7 @@ public class ErrorHandlerTests
         Assert.True(hasFatalError,
             $"Expected FATAL error about unhandled exception. Logs:\n{errorOutput}");
 
-        Assert.True(executionCount >= 2, "Worker should have executed at least twice before throwing");
+        Assert.Equal(1, executionCount); // Continuous worker runs exactly once
 
         await host.StopAsync();
         host.Dispose();
@@ -262,11 +244,8 @@ public class ErrorHandlerTests
         host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 Interlocked.Increment(ref workerExecutions);
-                if (workerExecutions <= 3)
-                {
-                    throw new InvalidOperationException("Worker error");
-                }
-                await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+                await Task.CompletedTask;
+                throw new InvalidOperationException("Worker error");
             })
             .WithErrorHandler(ex =>
             {
@@ -280,8 +259,9 @@ public class ErrorHandlerTests
         await Task.Delay(TestConstants.StandardTestWindowMs);
         await host.StopAsync();
 
-        // Assert - Error handler should have been called for each worker error
-        Assert.True(errorHandlerCallCount >= 1, $"Error handler should have been called at least once, got {errorHandlerCallCount}");
+        // Assert - Worker runs once, error handler called once
+        Assert.Equal(1, workerExecutions);
+        Assert.Equal(1, errorHandlerCallCount);
     }
 
     [Fact]
@@ -294,17 +274,18 @@ public class ErrorHandlerTests
 
         using var host = Host.CreateDefaultBuilder().Build();
 
-        // Healthy worker that should keep running
+        // Healthy worker
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
             Interlocked.Increment(ref healthyWorkerExecutions);
-            await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+            await Task.CompletedTask;
         }).WithName("healthy-worker");
 
         // Failing worker with error handler
         host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 Interlocked.Increment(ref failingWorkerExecutions);
+                await Task.CompletedTask;
                 throw new InvalidOperationException("This worker always fails");
             })
             .WithName("failing-worker")
@@ -315,10 +296,9 @@ public class ErrorHandlerTests
         await Task.Delay(TestConstants.StandardTestWindowMs);
         await host.StopAsync();
 
-        // Assert - Both workers should execute, healthy one continues normally
-        Assert.InRange(healthyWorkerExecutions, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
-        Assert.True(failingWorkerExecutions >= TestConstants.MinContinuousExecutions,
-            $"Failing worker should execute multiple times with error handler, got {failingWorkerExecutions}");
+        // Assert - Each continuous worker runs exactly once
+        Assert.Equal(1, healthyWorkerExecutions);
+        Assert.Equal(1, failingWorkerExecutions);
     }
 
     [Fact]

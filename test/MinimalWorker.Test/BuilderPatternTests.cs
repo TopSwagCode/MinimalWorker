@@ -109,7 +109,7 @@ public class BuilderPatternTests
         host.RunBackgroundWorker(async (CancellationToken token) =>
         {
             executed = true;
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         }).WithName("");
 
         // Act

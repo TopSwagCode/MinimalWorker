@@ -28,7 +28,7 @@ public class ServiceResolutionTests
             {
                 var item = await repo.GetAsync();
                 processedItems.Add(item);
-                await Task.Delay(10, token);
+                await Task.CompletedTask;
             })
             .WithErrorHandler(ex =>
             {
@@ -45,7 +45,7 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.InRange(processedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.Equal(1, processedItems.Count);
         Assert.All(processedItems, item => Assert.StartsWith("Item_", item));
     }
 
@@ -67,7 +67,7 @@ public class ServiceResolutionTests
         {
             logger.LogInformation("Worker executing at {Time}", DateTime.UtcNow);
             Interlocked.Increment(ref logCount);
-            await Task.Delay(10, token);
+            await Task.CompletedTask;
         });
 
         // Act
@@ -75,8 +75,8 @@ public class ServiceResolutionTests
         await Task.Delay(100);
         await host.StopAsync();
 
-        // Assert
-        Assert.InRange(logCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Continuous worker runs exactly once
+        Assert.Equal(1, logCount);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class ServiceResolutionTests
             {
                 Interlocked.Increment(ref executionCount);
             }
-            await Task.Delay(options.Value.Interval, token);
+            await Task.CompletedTask;
         });
 
         // Act
@@ -111,8 +111,8 @@ public class ServiceResolutionTests
         await Task.Delay(100);
         await host.StopAsync();
 
-        // Assert
-        Assert.InRange(executionCount, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        // Assert - Continuous worker runs exactly once
+        Assert.Equal(1, executionCount);
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class ServiceResolutionTests
         host.RunBackgroundWorker(async (ITransientService service, CancellationToken token) =>
         {
             instanceIds.Add(service.InstanceId);
-            await Task.Delay(TestConstants.StandardWorkerDelayMs, token);
+            await Task.CompletedTask;
         });
 
         // Act
@@ -140,11 +140,8 @@ public class ServiceResolutionTests
         await Task.Delay(TestConstants.StandardTestWindowMs);
         await host.StopAsync();
 
-        // Assert - Continuous worker resolves dependencies once at startup and reuses them
-        // across all iterations. The injected service instance is the same object throughout.
-        Assert.True(instanceIds.Count >= TestConstants.MinContinuousExecutions,
-            $"Expected at least {TestConstants.MinContinuousExecutions} executions, got {instanceIds.Count}");
-        // All iterations use the same injected instance (resolved once when worker started)
+        // Assert - Continuous worker runs exactly once, resolving dependencies once
+        Assert.Equal(1, instanceIds.Count);
         Assert.Single(instanceIds.Distinct());
     }
 
@@ -169,7 +166,7 @@ public class ServiceResolutionTests
             {
                 var item = await consumer.ConsumeAsync(token);
                 consumedItems.Add(item);
-                await Task.Delay(10, token);
+                await Task.CompletedTask;
             })
             .WithErrorHandler(ex =>
             {
@@ -186,7 +183,7 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.InRange(consumedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.Equal(1, consumedItems.Count);
         Assert.All(consumedItems, item =>
         {
             Assert.StartsWith("Key_", item.Key);
@@ -213,7 +210,7 @@ public class ServiceResolutionTests
             {
                 var item = await consumer.ConsumeAsync(token);
                 consumedItems.Add(item);
-                await Task.Delay(10, token);
+                await Task.CompletedTask;
             })
             .WithErrorHandler(ex =>
             {
@@ -230,7 +227,7 @@ public class ServiceResolutionTests
         {
             throw new Exception($"Worker failed: {workerException.Message}", workerException);
         }
-        Assert.InRange(consumedItems.Count, TestConstants.MinContinuousExecutions, TestConstants.MaxContinuousExecutions);
+        Assert.Equal(1, consumedItems.Count);
         Assert.All(consumedItems, item =>
         {
             Assert.StartsWith("Key_", item.Key);
