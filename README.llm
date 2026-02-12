@@ -50,6 +50,8 @@ public interface IWorkerBuilder
 {
     IWorkerBuilder WithName(string name);
     IWorkerBuilder WithErrorHandler(Action<Exception> handler);
+    IWorkerBuilder WithTimeout(TimeSpan timeout);
+    IWorkerBuilder WithRetry(int maxAttempts = 3, TimeSpan? delay = null);
 }
 ```
 
@@ -207,6 +209,73 @@ app.RunBackgroundWorker((IMissingService missing) =>
     // Never reached
 });
 // Exit code 1 with clear error message
+```
+
+---
+
+## Timeout Configuration
+
+Use `.WithTimeout()` to automatically cancel long-running executions:
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (DataService data, CancellationToken ct) =>
+{
+    await data.ProcessBatch(ct); // Cancelled if exceeds 4 minutes
+})
+.WithTimeout(TimeSpan.FromMinutes(4))
+.WithErrorHandler(ex =>
+{
+    if (ex is TimeoutException) Console.WriteLine("Timed out!");
+});
+```
+
+**Behavior:**
+- `TimeoutException` thrown when timeout exceeded
+- CancellationToken passed to delegate is cancelled on timeout
+- Timeouts are **NOT retried** when combined with `.WithRetry()`
+- Works with all worker types
+
+---
+
+## Retry Configuration
+
+Use `.WithRetry()` to automatically retry failed executions:
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (ApiClient api, CancellationToken ct) =>
+{
+    await api.SendData(ct); // Retries up to 3 times
+})
+.WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(5))
+.WithErrorHandler(ex =>
+{
+    // Called only after ALL retries exhausted
+    Console.WriteLine($"All retries failed: {ex.Message}");
+});
+```
+
+**Parameters:**
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `maxAttempts` | 3 | Maximum execution attempts |
+| `delay` | 5 seconds | Wait time between retries |
+
+**Behavior:**
+- Error handler only called after all retries exhausted
+- `OperationCanceledException` (shutdown) is never retried
+- Timeouts are **NOT retried**
+
+### Combining Timeout and Retry
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(10), async (SyncService sync, CancellationToken ct) =>
+{
+    await sync.SyncData(ct);
+})
+.WithTimeout(TimeSpan.FromMinutes(2))   // Each attempt times out after 2 min
+.WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(30))  // Retry failures, not timeouts
+.WithName("data-sync")
+.WithErrorHandler(ex => logger.LogError(ex, "Sync failed"));
 ```
 
 ---
@@ -537,7 +606,9 @@ host.RunPeriodicBackgroundWorker(
     {
         await notifications.CleanupExpiredAsync(ct);
     })
-.WithName("notification-cleanup");
+.WithName("notification-cleanup")
+.WithTimeout(TimeSpan.FromMinutes(4))
+.WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10));
 
 // Cron worker - runs on schedule (UTC), new scope per execution
 host.RunCronBackgroundWorker(

@@ -21,6 +21,8 @@
 - 🧼 Minimal and clean API
 - 📈 Built-in telemetry with automatic metrics and distributed tracing
 - 🏎️ AOT Compilation Support
+- ⏰ Configurable execution timeouts
+- 🔁 Automatic retry with configurable attempts and delays
 
 ---
 
@@ -153,6 +155,68 @@ app.RunBackgroundWorker(async (CancellationToken token) =>
 ```
 
 **Note**: This captures singleton services. For scoped services, this approach has limitations. Native DI support for error handlers is being considered for a future release.
+
+### Timeout Configuration
+
+Use `.WithTimeout()` to automatically cancel long-running worker executions:
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (DataService data, CancellationToken token) =>
+{
+    await data.ProcessBatch(token); // Will be cancelled if takes > 4 minutes
+})
+.WithTimeout(TimeSpan.FromMinutes(4))
+.WithErrorHandler(ex =>
+{
+    if (ex is TimeoutException)
+    {
+        Console.WriteLine("Processing timed out!");
+    }
+});
+```
+
+**Behavior**:
+- A `TimeoutException` is thrown when the timeout is exceeded
+- The `CancellationToken` passed to your delegate is cancelled on timeout
+- Timeouts are **not retried** (if using `.WithRetry()`)
+- Works with all worker types: continuous, periodic, and cron
+
+### Retry Configuration
+
+Use `.WithRetry()` to automatically retry failed worker executions:
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (ApiClient api, CancellationToken token) =>
+{
+    await api.SendData(token); // Will retry up to 3 times on failure
+})
+.WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(5))
+.WithErrorHandler(ex =>
+{
+    // Called only after all retries are exhausted
+    Console.WriteLine($"All retries failed: {ex.Message}");
+});
+```
+
+**Behavior**:
+- `maxAttempts` - Maximum number of execution attempts (default: 3)
+- `delay` - Time to wait between retry attempts (default: 5 seconds)
+- Error handler is only called after all retries are exhausted
+- `OperationCanceledException` (graceful shutdown) is never retried
+- Timeouts are **not retried** when combined with `.WithTimeout()`
+
+### Combining Timeout and Retry
+
+```csharp
+app.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(10), async (SyncService sync, CancellationToken token) =>
+{
+    await sync.SyncData(token);
+})
+.WithTimeout(TimeSpan.FromMinutes(2))   // Each attempt times out after 2 minutes
+.WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(30))  // Retry regular failures, not timeouts
+.WithName("data-sync")
+.WithErrorHandler(ex => logger.LogError(ex, "Sync failed"));
+```
 
 #### Startup Dependency Validation
 

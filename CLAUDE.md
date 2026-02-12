@@ -35,7 +35,11 @@ MinimalWorker is a .NET library for simplified background worker registration on
 - `RunPeriodicBackgroundWorker(IHost, TimeSpan, Delegate)` - Runs after each interval
 - `RunCronBackgroundWorker(IHost, string, Delegate)` - Runs on cron schedule (UTC)
 
-All return `IWorkerBuilder` for fluent `.WithName()` and `.WithErrorHandler()` configuration.
+All return `IWorkerBuilder` for fluent configuration:
+- `.WithName(string)` - Set worker name for logs/metrics
+- `.WithErrorHandler(Action<Exception>)` - Handle errors (worker continues)
+- `.WithTimeout(TimeSpan)` - Cancel execution if it exceeds timeout
+- `.WithRetry(int maxAttempts, TimeSpan? delay)` - Retry failed executions
 
 **Source Generator** (`src/MinimalWorker.Generators/`):
 - `WorkerGenerator.cs` - IIncrementalGenerator that scans invocations
@@ -84,9 +88,17 @@ for (int i = 0; i < steps; i++)
 }
 ```
 
+### Timeout and Retry Behavior
+
+- **Timeout**: Throws `TimeoutException`, cancels the delegate's `CancellationToken`
+- **Retry**: Only retries on exceptions (not timeouts or `OperationCanceledException`)
+- **Combined**: Timeouts are NOT retried when using both `.WithTimeout()` and `.WithRetry()`
+- Error handler is called only after all retries are exhausted
+
 ## Common Anti-patterns
 
 - **Continuous workers**: Run exactly once. Include your own `while` loop if you need repetition
 - **Periodic/Cron workers**: Do NOT add loops - framework handles repetition
 - **Testing**: Always call `BackgroundWorkerExtensions.ClearRegistrations()` before each test
 - **Time advancement**: Advance in small steps with `Task.Yield()` between, not one large jump
+- **Timeout/Retry testing**: Use real time (not FakeTimeProvider) since `Task.Delay` and `CancellationTokenSource.CancelAfter` use system time
