@@ -399,10 +399,11 @@ internal static class WorkerEmitter
 
         foreach (var worker in workers)
         {
-            // Build signature from worker parameters - strip global:: prefix and normalize spacing to match runtime format
+            // Build signature from worker parameters and return type - strip global:: prefix and normalize spacing to match runtime format
             // Runtime uses FormatTypeName which joins generic args with "," (no space), so we must do the same
             var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "").Replace(", ", ",")));
-            var signature = $"{worker.Type}:{paramTypes}";
+            var returnType = worker.ReturnType.Replace("global::", "").Replace(", ", ",");
+            var signature = $"{worker.Type}:{paramTypes}:{returnType}";
 
             if (!workerMap.ContainsKey(signature))
             {
@@ -567,10 +568,16 @@ internal static class WorkerEmitter
         sb.AppendLine("                    succeeded = true; // Mark as success to avoid error handling");
         sb.AppendLine("                    break;");
         sb.AppendLine("                }");
-        sb.AppendLine("                catch (OperationCanceledException) when (timeout.HasValue)");
+        sb.AppendLine("                catch (OperationCanceledException) when (timeout.HasValue && timeoutCts?.Token.IsCancellationRequested == true && !token.IsCancellationRequested)");
         sb.AppendLine("                {");
         sb.AppendLine("                    // Timeout - don't retry timeouts");
         sb.AppendLine("                    lastException = new TimeoutException($\"Worker '{workerName}' execution timed out after {timeout.Value}.\");");
+        sb.AppendLine("                    break;");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (TimeoutException tex) when (timeout.HasValue)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    // User-thrown TimeoutException - don't retry when timeout is configured");
+        sb.AppendLine("                    lastException = tex;");
         sb.AppendLine("                    break;");
         sb.AppendLine("                }");
         sb.AppendLine("                catch (Exception ex)");
@@ -703,10 +710,16 @@ internal static class WorkerEmitter
         sb.AppendLine("                            succeeded = true; // Mark as success to avoid error handling");
         sb.AppendLine("                            break;");
         sb.AppendLine("                        }");
-        sb.AppendLine("                        catch (OperationCanceledException) when (timeout.HasValue)");
+        sb.AppendLine("                        catch (OperationCanceledException) when (timeout.HasValue && timeoutCts?.Token.IsCancellationRequested == true && !token.IsCancellationRequested)");
         sb.AppendLine("                        {");
         sb.AppendLine("                            // Timeout - don't retry timeouts");
         sb.AppendLine("                            lastException = new TimeoutException($\"Worker '{workerName}' execution timed out after {timeout.Value}.\");");
+        sb.AppendLine("                            break;");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        catch (TimeoutException tex) when (timeout.HasValue)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            // User-thrown TimeoutException - don't retry when timeout is configured");
+        sb.AppendLine("                            lastException = tex;");
         sb.AppendLine("                            break;");
         sb.AppendLine("                        }");
         sb.AppendLine("                        catch (Exception ex)");
@@ -865,10 +878,16 @@ internal static class WorkerEmitter
         sb.AppendLine("                            succeeded = true; // Mark as success to avoid error handling");
         sb.AppendLine("                            break;");
         sb.AppendLine("                        }");
-        sb.AppendLine("                        catch (OperationCanceledException) when (timeout.HasValue)");
+        sb.AppendLine("                        catch (OperationCanceledException) when (timeout.HasValue && timeoutCts?.Token.IsCancellationRequested == true && !token.IsCancellationRequested)");
         sb.AppendLine("                        {");
         sb.AppendLine("                            // Timeout - don't retry timeouts");
         sb.AppendLine("                            lastException = new TimeoutException($\"Worker '{workerName}' execution timed out after {timeout.Value}.\");");
+        sb.AppendLine("                            break;");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        catch (TimeoutException tex) when (timeout.HasValue)");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            // User-thrown TimeoutException - don't retry when timeout is configured");
+        sb.AppendLine("                            lastException = tex;");
         sb.AppendLine("                            break;");
         sb.AppendLine("                        }");
         sb.AppendLine("                        catch (Exception ex)");

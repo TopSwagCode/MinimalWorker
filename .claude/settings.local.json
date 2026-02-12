@@ -4,7 +4,9 @@
       "Bash(dotnet test:*)",
       "Bash(dotnet build:*)",
       "Bash(ls:*)",
-      "Bash(dotnet publish:*)"
+      "Bash(dotnet publish:*)",
+      "Bash(dotnet clean:*)",
+      "Bash(dotnet restore:*)"
     ]
   }
 }

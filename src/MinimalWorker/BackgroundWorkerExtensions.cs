@@ -275,6 +275,7 @@ public static partial class BackgroundWorkerExtensions
     private static string FormatTypeName(Type type)
     {
         // Map common types to their C# keyword equivalents
+        if (type == typeof(void)) return "void";
         if (type == typeof(string)) return "string";
         if (type == typeof(int)) return "int";
         if (type == typeof(long)) return "long";
@@ -415,7 +416,8 @@ public static partial class BackgroundWorkerExtensions
     {
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
-        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var paramSignature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var returnType = FormatTypeName(action.Method.ReturnType);
 
         var registration = new WorkerRegistration
         {
@@ -425,7 +427,7 @@ public static partial class BackgroundWorkerExtensions
             Type = WorkerType.Continuous,
             Host = host,
             ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Continuous}:{signature}",
+            Signature = $"{WorkerType.Continuous}:{paramSignature}:{returnType}",
             OnError = null
         };
 
@@ -478,7 +480,8 @@ public static partial class BackgroundWorkerExtensions
 
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
-        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var paramSignature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var returnType = FormatTypeName(action.Method.ReturnType);
 
         var registration = new WorkerRegistration
         {
@@ -489,7 +492,7 @@ public static partial class BackgroundWorkerExtensions
             Schedule = timespan,
             Host = host,
             ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Periodic}:{signature}",
+            Signature = $"{WorkerType.Periodic}:{paramSignature}:{returnType}",
             OnError = null
         };
 
@@ -556,7 +559,8 @@ public static partial class BackgroundWorkerExtensions
 
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
-        var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var paramSignature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
+        var returnType = FormatTypeName(action.Method.ReturnType);
 
         var registration = new WorkerRegistration
         {
@@ -567,7 +571,7 @@ public static partial class BackgroundWorkerExtensions
             Schedule = cronExpression,
             Host = host,
             ParameterCount = parameters.Length,
-            Signature = $"{WorkerType.Cron}:{signature}",
+            Signature = $"{WorkerType.Cron}:{paramSignature}:{returnType}",
             OnError = null
         };
 
