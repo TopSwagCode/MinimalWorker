@@ -104,6 +104,11 @@ internal static class WorkerEmitter
         sb.AppendLine("    // Worker state tracking for observable gauges");
         sb.AppendLine("    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, WorkerState> _workerStates = new();");
         sb.AppendLine();
+        sb.AppendLine("    // Cached snapshot for gauge enumeration optimization");
+        sb.AppendLine("    private static WorkerState[]? _cachedSnapshot;");
+        sb.AppendLine("    private static int _snapshotVersion;");
+        sb.AppendLine("    private static int _currentVersion;");
+        sb.AppendLine();
         sb.AppendLine("    internal sealed class WorkerState");
         sb.AppendLine("    {");
         sb.AppendLine("        public string WorkerId { get; set; } = string.Empty;");
@@ -112,6 +117,24 @@ internal static class WorkerEmitter
         sb.AppendLine("        public bool IsActive { get; set; }");
         sb.AppendLine("        public long LastSuccessTimestamp { get; set; }");
         sb.AppendLine("        public long ConsecutiveFailures { get; set; }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Gets a cached snapshot of worker states, only re-allocating when workers are added/removed.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    private static WorkerState[] GetWorkerStatesSnapshot()");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var version = Volatile.Read(ref _currentVersion);");
+        sb.AppendLine("        var cached = _cachedSnapshot;");
+        sb.AppendLine("        if (cached != null && _snapshotVersion == version)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            return cached;");
+        sb.AppendLine("        }");
+        sb.AppendLine("        // Version changed or no cache - create new snapshot");
+        sb.AppendLine("        var snapshot = _workerStates.Values.ToArray();");
+        sb.AppendLine("        _cachedSnapshot = snapshot;");
+        sb.AppendLine("        _snapshotVersion = version;");
+        sb.AppendLine("        return snapshot;");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    internal static void RegisterWorker(string workerId, string workerName, string workerType)");
@@ -125,6 +148,8 @@ internal static class WorkerEmitter
         sb.AppendLine("            LastSuccessTimestamp = 0,");
         sb.AppendLine("            ConsecutiveFailures = 0");
         sb.AppendLine("        };");
+        sb.AppendLine("        // Invalidate cache when worker is registered");
+        sb.AppendLine("        Interlocked.Increment(ref _currentVersion);");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    internal static void RecordSuccess(string workerId)");
@@ -150,6 +175,8 @@ internal static class WorkerEmitter
         sb.AppendLine("        {");
         sb.AppendLine("            state.IsActive = false;");
         sb.AppendLine("        }");
+        sb.AppendLine("        // Invalidate cache when worker is deactivated");
+        sb.AppendLine("        Interlocked.Increment(ref _currentVersion);");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
@@ -164,8 +191,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<int>> GetActiveWorkerMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
-        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
+        sb.AppendLine("        // Use cached snapshot to avoid allocation on every metrics export");
+        sb.AppendLine("        foreach (var state in GetWorkerStatesSnapshot())");
         sb.AppendLine("        {");
         sb.AppendLine("            var tags = new TagList");
         sb.AppendLine("            {");
@@ -189,8 +216,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<long>> GetLastSuccessMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
-        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
+        sb.AppendLine("        // Use cached snapshot to avoid allocation on every metrics export");
+        sb.AppendLine("        foreach (var state in GetWorkerStatesSnapshot())");
         sb.AppendLine("        {");
         sb.AppendLine("            if (state.LastSuccessTimestamp > 0)");
         sb.AppendLine("            {");
@@ -216,8 +243,8 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("    private static System.Collections.Generic.IEnumerable<Measurement<long>> GetConsecutiveFailuresMeasurements()");
         sb.AppendLine("    {");
-        sb.AppendLine("        // Take a snapshot to avoid collection modified exception during enumeration");
-        sb.AppendLine("        foreach (var state in _workerStates.Values.ToArray())");
+        sb.AppendLine("        // Use cached snapshot to avoid allocation on every metrics export");
+        sb.AppendLine("        foreach (var state in GetWorkerStatesSnapshot())");
         sb.AppendLine("        {");
         sb.AppendLine("            var tags = new TagList");
         sb.AppendLine("            {");
@@ -285,11 +312,43 @@ internal static class WorkerEmitter
 
     private static void EmitWorkerExtension(StringBuilder sb, List<WorkerInvocationModel> workers)
     {
+        // Build worker map first to determine signatures
+        int caseNum = 1;
+        var workerMap = new Dictionary<string, WorkerInvocationModel>();
+        var signatureToMethod = new Dictionary<string, int>();
+
+        foreach (var worker in workers)
+        {
+            // Build signature from worker parameters - strip global:: prefix and normalize spacing to match runtime format
+            // Runtime uses FormatTypeName which joins generic args with "," (no space), so we must do the same
+            var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "").Replace(", ", ",")));
+            var signature = $"{worker.Type}:{paramTypes}";
+
+            if (!workerMap.ContainsKey(signature))
+            {
+                workerMap[signature] = worker;
+                signatureToMethod[signature] = caseNum;
+                caseNum++;
+            }
+        }
+
         sb.AppendLine("/// <summary>");
         sb.AppendLine("/// Generated class to wire up background workers using a module initializer.");
         sb.AppendLine("/// </summary>");
         sb.AppendLine("internal static class GeneratedBackgroundWorkerInitializer");
         sb.AppendLine("{");
+
+        // Generate static dictionary for O(1) signature dispatch
+        sb.AppendLine("    // O(1) signature dispatch dictionary - initialized once, used for all lookups");
+        sb.AppendLine("    private static readonly System.Collections.Generic.Dictionary<string, Action<BackgroundWorkerExtensions.WorkerRegistration>> _workerInitializers = new()");
+        sb.AppendLine("    {");
+        foreach (var kvp in signatureToMethod)
+        {
+            sb.AppendLine($"        {{ \"{kvp.Key}\", InitializeWorker_{kvp.Value} }},");
+        }
+        sb.AppendLine("    };");
+        sb.AppendLine();
+
         sb.AppendLine("    [System.Runtime.CompilerServices.ModuleInitializer]");
         sb.AppendLine("    internal static void Initialize()");
         sb.AppendLine("    {");
@@ -303,42 +362,17 @@ internal static class WorkerEmitter
         sb.AppendLine("            .Where(r => r.Host == host)");
         sb.AppendLine("            .ToList();");
         sb.AppendLine();
-        sb.AppendLine("        // Initialize each worker based on its parameter signature");
+        sb.AppendLine("        // Initialize each worker using O(1) dictionary lookup");
         sb.AppendLine("        foreach (var registration in registrations)");
         sb.AppendLine("        {");
-        
-        // Generate a switch statement to match workers by their unique signature
-        sb.AppendLine("            switch (registration.Signature)");
+        sb.AppendLine("            if (_workerInitializers.TryGetValue(registration.Signature, out var initializer))");
         sb.AppendLine("            {");
-        
-        // Create a case for each unique worker signature
-        int caseNum = 1;
-        var workerMap = new Dictionary<string, WorkerInvocationModel>();
-        foreach (var worker in workers)
-        {
-            // Build signature from worker parameters - strip global:: prefix and normalize spacing to match runtime format
-            // Runtime uses FormatTypeName which joins generic args with "," (no space), so we must do the same
-            var paramTypes = string.Join(",", worker.Parameters.Select(p => p.Type.Replace("global::", "").Replace(", ", ",")));
-            var signature = $"{worker.Type}:{paramTypes}";
-            
-            if (!workerMap.ContainsKey(signature))
-            {
-                workerMap[signature] = worker;
-                sb.AppendLine($"                case \"{signature}\":");
-                sb.AppendLine($"                    InitializeWorker_{caseNum}(registration);");
-                sb.AppendLine("                    break;");
-                caseNum++;
-            }
-        }
-        
-        sb.AppendLine("                default:");
-        sb.AppendLine("                    // No matching worker initializer - this shouldn't happen");
-        sb.AppendLine("                    break;");
+        sb.AppendLine("                initializer(registration);");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
-        
+
         // Emit worker initialization methods - one for each unique signature
         caseNum = 1;
         foreach (var kvp in workerMap)
@@ -346,7 +380,7 @@ internal static class WorkerEmitter
             EmitWorkerInitializer(sb, kvp.Value, caseNum);
             caseNum++;
         }
-        
+
         sb.AppendLine("}");
     }
 

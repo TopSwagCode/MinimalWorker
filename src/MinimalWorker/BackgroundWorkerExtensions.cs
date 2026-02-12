@@ -6,22 +6,72 @@ using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Fluent builder interface for configuring background workers.
+/// Provides methods for naming workers and handling errors.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Use the builder methods to customize worker behavior:
+/// </para>
+/// <list type="bullet">
+/// <item><description><see cref="WithName"/> - Assigns a descriptive name for logs, metrics, and traces</description></item>
+/// <item><description><see cref="WithErrorHandler"/> - Provides custom error handling instead of application termination</description></item>
+/// </list>
+/// </remarks>
+/// <example>
+/// <code>
+/// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (token) => { })
+///     .WithName("data-sync")
+///     .WithErrorHandler(ex => logger.LogError(ex, "Sync failed"));
+/// </code>
+/// </example>
 public interface IWorkerBuilder
 {
     /// <summary>
-    /// Sets a name for the worker. Used in logs, metrics, and traces for easier identification.
+    /// Sets a descriptive name for the worker. Used in logs, metrics, and distributed traces for easier identification.
     /// </summary>
-    /// <param name="name">The name to assign to the worker.</param>
+    /// <param name="name">The name to assign to the worker. Should be unique and descriptive (e.g., "order-processor", "cache-cleanup").</param>
     /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// If not set, a default name "worker-{id}" is generated.
+    /// The name appears in:
+    /// <list type="bullet">
+    /// <item><description>Log messages (category: MinimalWorker.{name})</description></item>
+    /// <item><description>Metrics (worker.name tag)</description></item>
+    /// <item><description>Distributed traces (worker.name attribute)</description></item>
+    /// </list>
+    /// </remarks>
     IWorkerBuilder WithName(string name);
 
     /// <summary>
     /// Sets an error handler for unhandled exceptions in the worker.
-    /// If not provided, exceptions will cause the application to terminate.
     /// </summary>
-    /// <param name="handler">The error handler delegate.</param>
+    /// <param name="handler">The error handler delegate that receives the exception.</param>
     /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Important:</b> Without an error handler, unhandled exceptions will terminate the application (fail-fast behavior).
+    /// </para>
+    /// <para>
+    /// The error handler is called for each exception. After the handler returns:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><b>Periodic/Cron workers:</b> Continue running and will execute on next schedule</description></item>
+    /// <item><description><b>Continuous workers:</b> Worker stops (user controls the loop)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (api, token) =>
+    ///     {
+    ///         await api.SyncDataAsync(token);
+    ///     })
+    ///     .WithErrorHandler(ex =>
+    ///     {
+    ///         telemetry.TrackException(ex);
+    ///         // Worker continues on next interval
+    ///     });
+    /// </code>
+    /// </example>
     IWorkerBuilder WithErrorHandler(Action<Exception> handler);
 }
 
@@ -213,30 +263,49 @@ public static partial class BackgroundWorkerExtensions
     }
 
     /// <summary>
-    /// Maps a background worker that continuously executes the specified delegate while the application is running.
+    /// Registers a continuous background worker that executes the specified delegate once when the application starts.
     /// </summary>
     /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
     /// <param name="action">
-    /// A delegate representing the work to be executed.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
+    /// A delegate representing the work to be executed. Supported signatures:
+    /// <list type="bullet">
+    /// <item><description><c>void</c> or <c>Task</c> return types</description></item>
+    /// <item><description>Zero or more DI-resolved parameters</description></item>
+    /// <item><description>At most one <see cref="CancellationToken"/> parameter (auto-injected)</description></item>
+    /// </list>
     /// </param>
-    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
+    /// <returns>An <see cref="IWorkerBuilder"/> for configuring additional worker options.</returns>
     /// <remarks>
-    /// The worker will start when the application starts and run in a continuous loop until shutdown.
-    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
-    /// </remarks>
-    /// <example>
-    /// Example usage:
+    /// <para>
+    /// <b>Scoping:</b> A single DI scope is created for the worker's entire lifetime.
+    /// </para>
+    /// <para>
+    /// <b>Important:</b> The delegate executes exactly once. If you need repetition, include your own loop:
+    /// </para>
     /// <code>
     /// host.RunBackgroundWorker(async (CancellationToken token) =>
     /// {
     ///     while (!token.IsCancellationRequested)
     ///     {
-    ///         Console.WriteLine("Running background task...");
+    ///         // Your work here
     ///         await Task.Delay(1000, token);
     ///     }
-    /// }).WithName("order-processor").WithErrorHandler(ex => Console.WriteLine(ex));
+    /// });
+    /// </code>
+    /// <para>
+    /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// host.RunBackgroundWorker(async (IMessageQueue queue, CancellationToken token) =>
+    /// {
+    ///     while (!token.IsCancellationRequested)
+    ///     {
+    ///         var message = await queue.DequeueAsync(token);
+    ///         await ProcessMessageAsync(message);
+    ///     }
+    /// }).WithName("message-processor").WithErrorHandler(ex => logger.LogError(ex, "Processing failed"));
     /// </code>
     /// </example>
     public static IWorkerBuilder RunBackgroundWorker(this IHost host, Delegate action)
@@ -264,27 +333,38 @@ public static partial class BackgroundWorkerExtensions
     }
 
     /// <summary>
-    /// Maps a periodic background worker that executes the specified delegate at a fixed time interval.
+    /// Registers a periodic background worker that executes the specified delegate at a fixed time interval.
     /// </summary>
     /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
-    /// <param name="timespan">The <see cref="TimeSpan"/> interval between executions.</param>
+    /// <param name="timespan">The interval between executions. Must be greater than <see cref="TimeSpan.Zero"/>.</param>
     /// <param name="action">
-    /// A delegate representing the work to be executed periodically.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
+    /// A delegate representing the work to be executed periodically. Supported signatures:
+    /// <list type="bullet">
+    /// <item><description><c>void</c> or <c>Task</c> return types</description></item>
+    /// <item><description>Zero or more DI-resolved parameters</description></item>
+    /// <item><description>At most one <see cref="CancellationToken"/> parameter (auto-injected)</description></item>
+    /// </list>
     /// </param>
-    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
+    /// <returns>An <see cref="IWorkerBuilder"/> for configuring additional worker options.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="timespan"/> is zero or negative.</exception>
     /// <remarks>
-    /// The worker starts after the application is started and will execute the action repeatedly based on the specified interval.
+    /// <para>
+    /// <b>Scoping:</b> A new DI scope is created for each execution. Scoped services are disposed after each run.
+    /// </para>
+    /// <para>
+    /// <b>Important:</b> Do NOT add your own loop - the framework handles repetition automatically.
+    /// The interval starts <i>after</i> each execution completes.
+    /// </para>
+    /// <para>
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
+    /// </para>
     /// </remarks>
     /// <example>
-    /// Example usage:
     /// <code>
-    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (CancellationToken token) =>
+    /// // Cleanup cache every 5 minutes
+    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (ICacheService cache, CancellationToken token) =>
     /// {
-    ///     Console.WriteLine("Running periodic task every 5 minutes...");
-    ///     await Task.CompletedTask;
+    ///     await cache.CleanupExpiredEntriesAsync(token);
     /// }).WithName("cache-cleanup");
     /// </code>
     /// </example>
@@ -317,31 +397,53 @@ public static partial class BackgroundWorkerExtensions
     }
 
     /// <summary>
-    /// Maps a cron-scheduled background worker that executes the specified delegate according to a cron expression.
+    /// Registers a cron-scheduled background worker that executes the specified delegate according to a cron expression.
     /// </summary>
     /// <param name="host">The <see cref="IHost"/> to register the background worker on.</param>
     /// <param name="cronExpression">
-    /// A cron expression string defining the schedule.
-    /// Uses the standard cron format (minute, hour, day of month, month, day of week).
+    /// A cron expression string defining the schedule (UTC timezone).
+    /// Standard 5-field format: minute, hour, day-of-month, month, day-of-week.
+    /// Examples:
+    /// <list type="bullet">
+    /// <item><description><c>"* * * * *"</c> - Every minute</description></item>
+    /// <item><description><c>"*/15 * * * *"</c> - Every 15 minutes</description></item>
+    /// <item><description><c>"0 * * * *"</c> - Every hour at minute 0</description></item>
+    /// <item><description><c>"0 0 * * *"</c> - Daily at midnight</description></item>
+    /// <item><description><c>"0 0 * * 0"</c> - Weekly on Sunday at midnight</description></item>
+    /// </list>
     /// </param>
     /// <param name="action">
-    /// A delegate representing the work to be executed on the scheduled times.
-    /// It can return a <see cref="Task"/> for asynchronous work.
-    /// Dependency injection is supported for method parameters.
+    /// A delegate representing the work to be executed. Supported signatures:
+    /// <list type="bullet">
+    /// <item><description><c>void</c> or <c>Task</c> return types</description></item>
+    /// <item><description>Zero or more DI-resolved parameters</description></item>
+    /// <item><description>At most one <see cref="CancellationToken"/> parameter (auto-injected)</description></item>
+    /// </list>
     /// </param>
-    /// <returns>A builder for configuring additional worker options like name and error handling.</returns>
+    /// <returns>An <see cref="IWorkerBuilder"/> for configuring additional worker options.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="cronExpression"/> is null, empty, or whitespace.</exception>
     /// <remarks>
-    /// The worker schedules the execution based on the next occurrence derived from the cron expression.
+    /// <para>
+    /// <b>Scoping:</b> A new DI scope is created for each execution. Scoped services are disposed after each run.
+    /// </para>
+    /// <para>
+    /// <b>Timezone:</b> All cron expressions are evaluated in UTC.
+    /// </para>
+    /// <para>
+    /// <b>Important:</b> Do NOT add your own loop - the framework handles scheduling automatically.
+    /// </para>
+    /// <para>
     /// This method uses source generators for strongly-typed, reflection-free, AOT-compatible execution.
+    /// Uses NCrontab for cron expression parsing.
+    /// </para>
     /// </remarks>
     /// <example>
-    /// Example usage:
     /// <code>
-    /// host.RunCronBackgroundWorker("*/15 * * * *", async (CancellationToken token) =>
+    /// // Generate report at 2 AM daily
+    /// host.RunCronBackgroundWorker("0 2 * * *", async (IReportService reports, CancellationToken token) =>
     /// {
-    ///     Console.WriteLine("Running cron task every 15 minutes...");
-    ///     await Task.CompletedTask;
-    /// }).WithName("nightly-report");
+    ///     await reports.GenerateDailyReportAsync(token);
+    /// }).WithName("daily-report");
     /// </code>
     /// </example>
     public static IWorkerBuilder RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
@@ -373,34 +475,103 @@ public static partial class BackgroundWorkerExtensions
     }
 
     /// <summary>
-    /// Represents a registered background worker.
+    /// Represents a registered background worker with its configuration and metadata.
     /// </summary>
+    /// <remarks>
+    /// This class is used internally by the source generator to create strongly-typed worker initializers.
+    /// It captures all information needed to start and manage a background worker.
+    /// </remarks>
     public class WorkerRegistration
     {
+        /// <summary>
+        /// Gets or sets the unique identifier for this worker registration.
+        /// Auto-incremented for each registration within an application.
+        /// </summary>
         public int Id { get; set; }
-        public string? Name { get; set; } // Optional user-provided name for the worker
-        public Delegate Action { get; set; } = null!;
-        public WorkerType Type { get; set; }
-        public object? Schedule { get; set; }
-        public IHost Host { get; set; } = null!;
-        public int ParameterCount { get; set; } // Number of parameters in the delegate
-        public Action<Exception>? OnError { get; set; } // Optional error handler
-        public string Signature { get; set; } = string.Empty; // Unique signature based on parameter types
 
         /// <summary>
-        /// Gets the display name for this worker. Returns the user-provided name if set,
-        /// otherwise returns a generated name based on the worker ID.
+        /// Gets or sets the optional user-provided name for the worker.
+        /// Set via <see cref="IWorkerBuilder.WithName"/>.
+        /// </summary>
+        public string? Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the delegate to execute. Contains the actual worker logic.
+        /// </summary>
+        public Delegate Action { get; set; } = null!;
+
+        /// <summary>
+        /// Gets or sets the type of worker (Continuous, Periodic, or Cron).
+        /// </summary>
+        public WorkerType Type { get; set; }
+
+        /// <summary>
+        /// Gets or sets the schedule configuration.
+        /// <list type="bullet">
+        /// <item><description>For Periodic workers: <see cref="TimeSpan"/> interval</description></item>
+        /// <item><description>For Cron workers: <see cref="string"/> cron expression</description></item>
+        /// <item><description>For Continuous workers: <c>null</c></description></item>
+        /// </list>
+        /// </summary>
+        public object? Schedule { get; set; }
+
+        /// <summary>
+        /// Gets or sets the host this worker is registered on.
+        /// </summary>
+        public IHost Host { get; set; } = null!;
+
+        /// <summary>
+        /// Gets or sets the number of parameters in the delegate.
+        /// Used for signature matching during code generation.
+        /// </summary>
+        public int ParameterCount { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional error handler for unhandled exceptions.
+        /// Set via <see cref="IWorkerBuilder.WithErrorHandler"/>.
+        /// If null, unhandled exceptions terminate the application.
+        /// </summary>
+        public Action<Exception>? OnError { get; set; }
+
+        /// <summary>
+        /// Gets or sets the unique signature based on worker type and parameter types.
+        /// Format: "{WorkerType}:{Param1Type},{Param2Type},...".
+        /// Used by the source generator to dispatch to the correct initializer.
+        /// </summary>
+        public string Signature { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets the display name for this worker.
+        /// Returns the user-provided name if set via <see cref="IWorkerBuilder.WithName"/>,
+        /// otherwise returns a generated name "worker-{Id}".
         /// </summary>
         public string DisplayName => Name ?? $"worker-{Id}";
     }
 
     /// <summary>
-    /// Type of background worker.
+    /// Specifies the type of background worker and its execution behavior.
     /// </summary>
     public enum WorkerType
     {
+        /// <summary>
+        /// A worker that executes once and runs until completion or cancellation.
+        /// The delegate is responsible for its own loop if repetition is needed.
+        /// Uses a single DI scope for its entire lifetime.
+        /// </summary>
         Continuous,
+
+        /// <summary>
+        /// A worker that executes repeatedly at a fixed time interval.
+        /// The framework manages the execution loop automatically.
+        /// Creates a new DI scope for each execution.
+        /// </summary>
         Periodic,
+
+        /// <summary>
+        /// A worker that executes according to a cron schedule (UTC timezone).
+        /// The framework manages the scheduling automatically.
+        /// Creates a new DI scope for each execution.
+        /// </summary>
         Cron
     }
 }
