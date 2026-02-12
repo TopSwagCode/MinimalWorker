@@ -177,33 +177,42 @@ public class PeriodicWorkerTests
     }
 
     [Fact]
-    public async Task PeriodicWorker_With_Zero_Interval_Should_Handle_Gracefully()
+    public void PeriodicWorker_With_Zero_Interval_Should_Throw_ArgumentOutOfRangeException()
     {
-        // TODO: Perhaps we should fire an exception here :)
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
 
         using var host = Host.CreateDefaultBuilder().Build();
 
-        // Act - TimeSpan.Zero is handled gracefully by the library
-        // The worker starts but the PeriodicTimer never fires with zero interval
-        var exception = await Record.ExceptionAsync(async () =>
+        // Act & Assert - TimeSpan.Zero should throw ArgumentOutOfRangeException
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
         {
             host.RunPeriodicBackgroundWorker(TimeSpan.Zero, (CancellationToken token) =>
             {
                 return Task.CompletedTask;
             });
-
-            await host.StartAsync();
-            await Task.Delay(50);
-            await host.StopAsync();
         });
 
-        // Assert - Library handles zero interval gracefully without crashing
-        // The worker registers and starts but the periodic timer doesn't fire
-        // This documents the actual behavior: no exception thrown, worker doesn't execute
-        Assert.Null(exception);
-        // Note: With TimeSpan.Zero, PeriodicTimer never fires, so execution count is 0
-        // This is the expected graceful handling behavior
+        Assert.Equal("timespan", exception.ParamName);
+    }
+
+    [Fact]
+    public void PeriodicWorker_With_Negative_Interval_Should_Throw_ArgumentOutOfRangeException()
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        // Act & Assert - Negative TimeSpan should throw ArgumentOutOfRangeException
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            host.RunPeriodicBackgroundWorker(TimeSpan.FromSeconds(-5), (CancellationToken token) =>
+            {
+                return Task.CompletedTask;
+            });
+        });
+
+        Assert.Equal("timespan", exception.ParamName);
     }
 }

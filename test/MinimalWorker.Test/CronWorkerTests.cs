@@ -272,4 +272,27 @@ public class CronWorkerTests
             $"Expected either error about invalid cron expression or worker should not execute. " +
             $"Worker executed: {workerExecuted}. Logs:\n{errorOutput}");
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CronBackgroundWorker_With_Empty_Expression_Should_Throw_ArgumentException(string? cronExpression)
+    {
+        // Arrange
+        BackgroundWorkerExtensions.ClearRegistrations();
+
+        using var host = Host.CreateDefaultBuilder().Build();
+
+        // Act & Assert - Empty cron expression should throw ArgumentException
+        var exception = Assert.Throws<ArgumentException>(() =>
+        {
+            host.RunCronBackgroundWorker(cronExpression!, (CancellationToken token) =>
+            {
+                return Task.CompletedTask;
+            });
+        });
+
+        Assert.Equal("cronExpression", exception.ParamName);
+    }
 }

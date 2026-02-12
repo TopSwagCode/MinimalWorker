@@ -290,6 +290,9 @@ public static partial class BackgroundWorkerExtensions
     /// </example>
     public static IWorkerBuilder RunPeriodicBackgroundWorker(this IHost host, TimeSpan timespan, Delegate action)
     {
+        if (timespan <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timespan), timespan, "TimeSpan must be greater than zero.");
+
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
         var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
@@ -343,6 +346,9 @@ public static partial class BackgroundWorkerExtensions
     /// </example>
     public static IWorkerBuilder RunCronBackgroundWorker(this IHost host, string cronExpression, Delegate action)
     {
+        if (string.IsNullOrWhiteSpace(cronExpression))
+            throw new ArgumentException("Cron expression cannot be null or empty.", nameof(cronExpression));
+
         var id = System.Threading.Interlocked.Increment(ref _registrationCounter);
         var parameters = action.Method.GetParameters();
         var signature = string.Join(",", parameters.Select(p => FormatTypeName(p.ParameterType)));
