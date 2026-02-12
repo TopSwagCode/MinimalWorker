@@ -6,6 +6,25 @@ using Microsoft.Extensions.Time.Testing;
 namespace MinimalWorker.Test.Helpers;
 
 /// <summary>
+/// Extension methods for TimeProvider to use in tests.
+/// </summary>
+public static class TimeProviderTestExtensions
+{
+    /// <summary>
+    /// Creates a delay that respects the TimeProvider (works with FakeTimeProvider in tests).
+    /// </summary>
+    public static async Task Delay(this TimeProvider timeProvider, TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        if (delay <= TimeSpan.Zero) return;
+
+        var tcs = new TaskCompletionSource<bool>();
+        using var timer = timeProvider.CreateTimer(_ => tcs.TrySetResult(true), null, delay, Timeout.InfiniteTimeSpan);
+        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        await tcs.Task.ConfigureAwait(false);
+    }
+}
+
+/// <summary>
 /// Helper class for testing workers with FakeTimeProvider.
 /// Advances time automatically to trigger periodic and cron workers without real delays.
 /// </summary>
