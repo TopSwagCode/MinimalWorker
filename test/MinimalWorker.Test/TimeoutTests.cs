@@ -12,18 +12,23 @@ public class TimeoutTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var timeoutOccurred = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        // Note: Timeout uses real system time, not FakeTimeProvider
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMinutes(1),
             async (CancellationToken token) =>
             {
                 // This simulates a long-running task that exceeds the timeout
-                await Task.Delay(TimeSpan.FromSeconds(30), token);
+                await timeProvider.Delay(TimeSpan.FromMinutes(30), token);
             })
-            .WithTimeout(TimeSpan.FromMilliseconds(50))
+            .WithTimeout(TimeSpan.FromMinutes(2))
             .WithErrorHandler(ex =>
             {
                 if (ex is TimeoutException)
@@ -34,7 +39,8 @@ public class TimeoutTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Allow timeout to occur
+        // Advance time: 1 min for periodic tick, then 2+ min for timeout to trigger
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(4), steps: 8);
         await host.StopAsync();
 
         // Assert
@@ -135,16 +141,15 @@ public class TimeoutTests
             })
             .Build();
 
-        // Every minute - uses FakeTimeProvider for scheduling
-        // but timeout uses real time
+        // Every minute
         host.RunCronBackgroundWorker(
             "* * * * *",
             async (CancellationToken token) =>
             {
-                // Long-running task - timeout will use real time
-                await Task.Delay(TimeSpan.FromSeconds(30), token);
+                // Long-running task that will timeout
+                await timeProvider.Delay(TimeSpan.FromMinutes(30), token);
             })
-            .WithTimeout(TimeSpan.FromMilliseconds(50))
+            .WithTimeout(TimeSpan.FromMinutes(2))
             .WithErrorHandler(ex =>
             {
                 if (ex is TimeoutException)
@@ -155,10 +160,8 @@ public class TimeoutTests
 
         // Act
         await host.StartAsync();
-        // Advance fake time to trigger cron execution
-        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2), steps: 24);
-        // Give real time for timeout to occur
-        await Task.Delay(200);
+        // Advance time: 1 min for cron trigger, then 2+ min for timeout
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(4), steps: 8);
         await host.StopAsync();
 
         // Assert
@@ -171,15 +174,21 @@ public class TimeoutTests
         // Arrange
         BackgroundWorkerExtensions.ClearRegistrations();
         var timeoutOccurred = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunBackgroundWorker(async (CancellationToken token) =>
             {
                 // Long-running task that exceeds timeout
-                await Task.Delay(TimeSpan.FromSeconds(30), token);
+                await timeProvider.Delay(TimeSpan.FromMinutes(30), token);
             })
-            .WithTimeout(TimeSpan.FromMilliseconds(50))
+            .WithTimeout(TimeSpan.FromMinutes(2))
             .WithErrorHandler(ex =>
             {
                 if (ex is TimeoutException)
@@ -190,7 +199,8 @@ public class TimeoutTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Allow time for timeout to occur
+        // Advance time past the timeout
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(3), steps: 6);
         await host.StopAsync();
 
         // Assert

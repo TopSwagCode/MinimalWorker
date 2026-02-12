@@ -42,6 +42,9 @@ internal static class WorkerEmitter
         // Emit WorkerLogMessages
         EmitWorkerLogMessages(sb);
 
+        // Emit TimeProvider extensions for timeout/retry support
+        EmitTimeProviderExtensions(sb);
+
         return sb.ToString();
     }
 
@@ -353,6 +356,40 @@ internal static class WorkerEmitter
         sb.AppendLine();
     }
 
+    private static void EmitTimeProviderExtensions(StringBuilder sb)
+    {
+        sb.AppendLine("/// <summary>");
+        sb.AppendLine("/// Extension methods for TimeProvider to support delay and timeout operations.");
+        sb.AppendLine("/// </summary>");
+        sb.AppendLine("internal static class TimeProviderExtensions");
+        sb.AppendLine("{");
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a delay that respects the TimeProvider (works with FakeTimeProvider in tests).");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    internal static async Task Delay(this TimeProvider timeProvider, TimeSpan delay, CancellationToken cancellationToken = default)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        if (delay <= TimeSpan.Zero) return;");
+        sb.AppendLine("        ");
+        sb.AppendLine("        var tcs = new TaskCompletionSource<bool>();");
+        sb.AppendLine("        using var timer = timeProvider.CreateTimer(_ => tcs.TrySetResult(true), null, delay, Timeout.InfiniteTimeSpan);");
+        sb.AppendLine("        using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));");
+        sb.AppendLine("        await tcs.Task.ConfigureAwait(false);");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Creates a CancellationTokenSource that cancels after the specified timeout using the TimeProvider.");
+        sb.AppendLine("    /// The returned CTS is also linked to the parent token for graceful shutdown support.");
+        sb.AppendLine("    /// </summary>");
+        sb.AppendLine("    internal static (CancellationTokenSource Cts, ITimer Timer) CreateTimeoutCts(this TimeProvider timeProvider, TimeSpan timeout, CancellationToken parentToken)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var cts = CancellationTokenSource.CreateLinkedTokenSource(parentToken);");
+        sb.AppendLine("        var timer = timeProvider.CreateTimer(_ => cts.Cancel(), null, timeout, Timeout.InfiniteTimeSpan);");
+        sb.AppendLine("        return (cts, timer);");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+    }
+
     private static void EmitWorkerExtension(StringBuilder sb, List<WorkerInvocationModel> workers)
     {
         // Build worker map first to determine signatures
@@ -471,6 +508,7 @@ internal static class WorkerEmitter
         sb.AppendLine();
         sb.AppendLine("        // Cache service lookups at initialization (outside Task.Run)");
         sb.AppendLine("        var workerLogger = host.Services.GetService<ILoggerFactory>()?.CreateLogger($\"MinimalWorker.{workerName}\");");
+        sb.AppendLine("        var timeProvider = host.Services.GetService<TimeProvider>() ?? TimeProvider.System;");
         sb.AppendLine();
         sb.AppendLine("        // Register worker for status tracking");
         sb.AppendLine($"        MinimalWorkerObservability.RegisterWorker(workerId, workerName, \"{workerType}\");");
@@ -500,13 +538,15 @@ internal static class WorkerEmitter
         sb.AppendLine("            // Retry loop");
         sb.AppendLine("            for (var attempt = 1; attempt <= retryMaxAttempts && !token.IsCancellationRequested; attempt++)");
         sb.AppendLine("            {");
+        sb.AppendLine("                CancellationTokenSource? timeoutCts = null;");
+        sb.AppendLine("                ITimer? timeoutTimer = null;");
         sb.AppendLine("                try");
         sb.AppendLine("                {");
-        sb.AppendLine("                    // Create execution token with optional timeout");
-        sb.AppendLine("                    using var timeoutCts = timeout.HasValue");
-        sb.AppendLine("                        ? CancellationTokenSource.CreateLinkedTokenSource(token)");
-        sb.AppendLine("                        : null;");
-        sb.AppendLine("                    if (timeout.HasValue) timeoutCts!.CancelAfter(timeout.Value);");
+        sb.AppendLine("                    // Create execution token with optional timeout (uses TimeProvider for testability)");
+        sb.AppendLine("                    if (timeout.HasValue)");
+        sb.AppendLine("                    {");
+        sb.AppendLine("                        (timeoutCts, timeoutTimer) = timeProvider.CreateTimeoutCts(timeout.Value, token);");
+        sb.AppendLine("                    }");
         sb.AppendLine("                    var executionToken = timeoutCts?.Token ?? token;");
         sb.AppendLine();
 
@@ -538,9 +578,14 @@ internal static class WorkerEmitter
         sb.AppendLine("                    lastException = ex;");
         sb.AppendLine("                    if (attempt < retryMaxAttempts && retryDelay > TimeSpan.Zero && !token.IsCancellationRequested)");
         sb.AppendLine("                    {");
-        sb.AppendLine("                        // Wait before retry");
-        sb.AppendLine("                        try { await Task.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
+        sb.AppendLine("                        // Wait before retry (uses TimeProvider for testability)");
+        sb.AppendLine("                        try { await timeProvider.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
         sb.AppendLine("                    }");
+        sb.AppendLine("                }");
+        sb.AppendLine("                finally");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    timeoutTimer?.Dispose();");
+        sb.AppendLine("                    timeoutCts?.Dispose();");
         sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine();
@@ -623,15 +668,17 @@ internal static class WorkerEmitter
         sb.AppendLine("                    // Retry loop");
         sb.AppendLine("                    for (var attempt = 1; attempt <= retryMaxAttempts && !token.IsCancellationRequested; attempt++)");
         sb.AppendLine("                    {");
+        sb.AppendLine("                        CancellationTokenSource? timeoutCts = null;");
+        sb.AppendLine("                        ITimer? timeoutTimer = null;");
         sb.AppendLine("                        try");
         sb.AppendLine("                        {");
         sb.AppendLine("                            using var scope = host.Services.CreateScope();");
         sb.AppendLine();
-        sb.AppendLine("                            // Create execution token with optional timeout");
-        sb.AppendLine("                            using var timeoutCts = timeout.HasValue");
-        sb.AppendLine("                                ? CancellationTokenSource.CreateLinkedTokenSource(token)");
-        sb.AppendLine("                                : null;");
-        sb.AppendLine("                            if (timeout.HasValue) timeoutCts!.CancelAfter(timeout.Value);");
+        sb.AppendLine("                            // Create execution token with optional timeout (uses TimeProvider for testability)");
+        sb.AppendLine("                            if (timeout.HasValue)");
+        sb.AppendLine("                            {");
+        sb.AppendLine("                                (timeoutCts, timeoutTimer) = timeProvider.CreateTimeoutCts(timeout.Value, token);");
+        sb.AppendLine("                            }");
         sb.AppendLine("                            var executionToken = timeoutCts?.Token ?? token;");
         sb.AppendLine();
 
@@ -667,9 +714,14 @@ internal static class WorkerEmitter
         sb.AppendLine("                            lastException = ex;");
         sb.AppendLine("                            if (attempt < retryMaxAttempts && retryDelay > TimeSpan.Zero && !token.IsCancellationRequested)");
         sb.AppendLine("                            {");
-        sb.AppendLine("                                // Wait before retry");
-        sb.AppendLine("                                try { await Task.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
+        sb.AppendLine("                                // Wait before retry (uses TimeProvider for testability)");
+        sb.AppendLine("                                try { await timeProvider.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
         sb.AppendLine("                            }");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        finally");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            timeoutTimer?.Dispose();");
+        sb.AppendLine("                            timeoutCts?.Dispose();");
         sb.AppendLine("                        }");
         sb.AppendLine("                    }");
         sb.AppendLine();
@@ -778,15 +830,17 @@ internal static class WorkerEmitter
         sb.AppendLine("                    // Retry loop");
         sb.AppendLine("                    for (var attempt = 1; attempt <= retryMaxAttempts && !token.IsCancellationRequested; attempt++)");
         sb.AppendLine("                    {");
+        sb.AppendLine("                        CancellationTokenSource? timeoutCts = null;");
+        sb.AppendLine("                        ITimer? timeoutTimer = null;");
         sb.AppendLine("                        try");
         sb.AppendLine("                        {");
         sb.AppendLine("                            using var scope = host.Services.CreateScope();");
         sb.AppendLine();
-        sb.AppendLine("                            // Create execution token with optional timeout");
-        sb.AppendLine("                            using var timeoutCts = timeout.HasValue");
-        sb.AppendLine("                                ? CancellationTokenSource.CreateLinkedTokenSource(token)");
-        sb.AppendLine("                                : null;");
-        sb.AppendLine("                            if (timeout.HasValue) timeoutCts!.CancelAfter(timeout.Value);");
+        sb.AppendLine("                            // Create execution token with optional timeout (uses TimeProvider for testability)");
+        sb.AppendLine("                            if (timeout.HasValue)");
+        sb.AppendLine("                            {");
+        sb.AppendLine("                                (timeoutCts, timeoutTimer) = timeProvider.CreateTimeoutCts(timeout.Value, token);");
+        sb.AppendLine("                            }");
         sb.AppendLine("                            var executionToken = timeoutCts?.Token ?? token;");
         sb.AppendLine();
 
@@ -822,9 +876,14 @@ internal static class WorkerEmitter
         sb.AppendLine("                            lastException = ex;");
         sb.AppendLine("                            if (attempt < retryMaxAttempts && retryDelay > TimeSpan.Zero && !token.IsCancellationRequested)");
         sb.AppendLine("                            {");
-        sb.AppendLine("                                // Wait before retry");
-        sb.AppendLine("                                try { await Task.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
+        sb.AppendLine("                                // Wait before retry (uses TimeProvider for testability)");
+        sb.AppendLine("                                try { await timeProvider.Delay(retryDelay, token); } catch (OperationCanceledException) { break; }");
         sb.AppendLine("                            }");
+        sb.AppendLine("                        }");
+        sb.AppendLine("                        finally");
+        sb.AppendLine("                        {");
+        sb.AppendLine("                            timeoutTimer?.Dispose();");
+        sb.AppendLine("                            timeoutCts?.Dispose();");
         sb.AppendLine("                        }");
         sb.AppendLine("                    }");
         sb.AppendLine();

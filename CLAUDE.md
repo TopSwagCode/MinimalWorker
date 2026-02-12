@@ -94,6 +94,7 @@ for (int i = 0; i < steps; i++)
 - **Retry**: Only retries on exceptions (not timeouts or `OperationCanceledException`)
 - **Combined**: Timeouts are NOT retried when using both `.WithTimeout()` and `.WithRetry()`
 - Error handler is called only after all retries are exhausted
+- Both timeout and retry delays respect `TimeProvider` for testability with `FakeTimeProvider`
 
 ## Common Anti-patterns
 
@@ -101,4 +102,3 @@ for (int i = 0; i < steps; i++)
 - **Periodic/Cron workers**: Do NOT add loops - framework handles repetition
 - **Testing**: Always call `BackgroundWorkerExtensions.ClearRegistrations()` before each test
 - **Time advancement**: Advance in small steps with `Task.Yield()` between, not one large jump
-- **Timeout/Retry testing**: Use real time (not FakeTimeProvider) since `Task.Delay` and `CancellationTokenSource.CancelAfter` use system time

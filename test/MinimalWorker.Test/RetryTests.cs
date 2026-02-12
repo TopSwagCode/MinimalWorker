@@ -13,12 +13,17 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         var errorHandlerCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        // Use real time since retry delay uses Task.Delay
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMinutes(1),
             (CancellationToken token) =>
             {
                 Interlocked.Increment(ref attemptCount);
@@ -28,7 +33,7 @@ public class RetryTests
                 }
                 return Task.CompletedTask;
             })
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -36,7 +41,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(500); // Allow time for periodic execution and retries
+        // Advance time: 1 min for periodic tick, then enough for retries
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2), steps: 24);
         await host.StopAsync();
 
         // Assert - Should succeed on 3rd attempt, error handler not called
@@ -51,12 +57,17 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         var errorHandlerCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        // Use real time since retry delay uses Task.Delay
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMinutes(1),
             (CancellationToken token) =>
             {
                 Interlocked.Increment(ref attemptCount);
@@ -65,7 +76,7 @@ public class RetryTests
                 return Task.CompletedTask;
 #pragma warning restore CS0162
             })
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -73,7 +84,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(500); // Allow time for periodic execution and retries
+        // Advance time: 1 min for periodic tick, then enough for all retries
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2), steps: 24);
         await host.StopAsync();
 
         // Assert - Should exhaust all retries and call error handler
@@ -128,12 +140,17 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         var errorHandlerCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        // Use real time since retry delay uses Task.Delay
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMinutes(1),
             (CancellationToken token) =>
             {
                 Interlocked.Increment(ref attemptCount);
@@ -142,7 +159,7 @@ public class RetryTests
                 return Task.CompletedTask;
 #pragma warning restore CS0162
             })
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -150,7 +167,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(500); // Allow time for execution and retries
+        // Advance time for periodic tick and retries
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2), steps: 24);
         await host.StopAsync();
 
         // Assert - 3 attempts configured
@@ -174,7 +192,7 @@ public class RetryTests
             })
             .Build();
 
-        // Every minute - FakeTimeProvider controls cron scheduling
+        // Every minute
         host.RunCronBackgroundWorker(
             "* * * * *",
             (CancellationToken token) =>
@@ -186,7 +204,7 @@ public class RetryTests
                 }
                 return Task.CompletedTask;
             })
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -194,9 +212,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        // Advance fake time to trigger cron, then give real time for retries
+        // Advance time for cron trigger and retries
         await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(2), steps: 24);
-        await Task.Delay(200); // Real time for retry delays
         await host.StopAsync();
 
         // Assert - Should succeed on 2nd attempt
@@ -211,8 +228,14 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         var errorHandlerCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunBackgroundWorker((CancellationToken token) =>
             {
@@ -223,7 +246,7 @@ public class RetryTests
                 }
                 return Task.CompletedTask;
             })
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -231,7 +254,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Allow time for retries
+        // Advance time for retries (2 retries * 10s delay = 20s minimum)
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(1), steps: 12);
         await host.StopAsync();
 
         // Assert - Should succeed on 3rd attempt
@@ -246,8 +270,14 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         var errorHandlerCalled = false;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunBackgroundWorker((CancellationToken token) =>
             {
@@ -257,7 +287,7 @@ public class RetryTests
                 return Task.CompletedTask;
 #pragma warning restore CS0162
             })
-            .WithRetry(maxAttempts: 2, delay: TimeSpan.FromMilliseconds(10))
+            .WithRetry(maxAttempts: 2, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 errorHandlerCalled = true;
@@ -265,7 +295,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(500); // Allow more time for retries
+        // Advance time for retries
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(1), steps: 12);
         await host.StopAsync();
 
         // Assert
@@ -280,20 +311,25 @@ public class RetryTests
         BackgroundWorkerExtensions.ClearRegistrations();
         var attemptCount = 0;
         Exception? caughtException = null;
+        var timeProvider = WorkerTestHelper.CreateTimeProvider();
 
-        // Use real time for this test since timeout uses real time
-        using var host = Host.CreateDefaultBuilder().Build();
+        using var host = Host.CreateDefaultBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(timeProvider);
+            })
+            .Build();
 
         host.RunPeriodicBackgroundWorker(
-            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromMinutes(1),
             async (CancellationToken token) =>
             {
                 attemptCount++;
                 // Simulate long-running task that will timeout
-                await Task.Delay(TimeSpan.FromSeconds(30), token);
+                await timeProvider.Delay(TimeSpan.FromMinutes(30), token);
             })
-            .WithTimeout(TimeSpan.FromMilliseconds(50))
-            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromMilliseconds(10))
+            .WithTimeout(TimeSpan.FromMinutes(2))
+            .WithRetry(maxAttempts: 3, delay: TimeSpan.FromSeconds(10))
             .WithErrorHandler(ex =>
             {
                 caughtException = ex;
@@ -301,7 +337,8 @@ public class RetryTests
 
         // Act
         await host.StartAsync();
-        await Task.Delay(200); // Allow timeout to occur
+        // Advance time: 1 min for periodic tick, then 2+ min for timeout
+        await WorkerTestHelper.AdvanceTimeAsync(timeProvider, TimeSpan.FromMinutes(4), steps: 8);
         await host.StopAsync();
 
         // Assert - Timeout should not be retried (only 1 attempt per timeout)
