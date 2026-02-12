@@ -73,6 +73,86 @@ public interface IWorkerBuilder
     /// </code>
     /// </example>
     IWorkerBuilder WithErrorHandler(Action<Exception> handler);
+
+    /// <summary>
+    /// Sets a timeout for each worker execution. If the execution exceeds this duration, it will be cancelled.
+    /// </summary>
+    /// <param name="timeout">The maximum duration for each execution. Must be greater than <see cref="TimeSpan.Zero"/>.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// The timeout applies to each individual execution, not the worker's total lifetime.
+    /// </para>
+    /// <para>
+    /// When a timeout occurs:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>The <see cref="CancellationToken"/> passed to the delegate is cancelled</description></item>
+    /// <item><description>A <see cref="TimeoutException"/> is raised (handled by error handler if configured)</description></item>
+    /// <item><description><b>Periodic/Cron workers:</b> Continue running and will execute on next schedule</description></item>
+    /// <item><description><b>Continuous workers:</b> Worker stops</description></item>
+    /// </list>
+    /// <para>
+    /// <b>Important:</b> The delegate must respect the <see cref="CancellationToken"/> for timeout to work effectively.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Data sync with 4 minute timeout (runs every 5 minutes)
+    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (api, token) =>
+    ///     {
+    ///         await api.SyncDataAsync(token);
+    ///     })
+    ///     .WithTimeout(TimeSpan.FromMinutes(4))
+    ///     .WithErrorHandler(ex =>
+    ///     {
+    ///         if (ex is TimeoutException)
+    ///             logger.LogWarning("Sync timed out, will retry next interval");
+    ///         else
+    ///             logger.LogError(ex, "Sync failed");
+    ///     });
+    /// </code>
+    /// </example>
+    IWorkerBuilder WithTimeout(TimeSpan timeout);
+
+    /// <summary>
+    /// Configures automatic retry behavior for failed worker executions.
+    /// </summary>
+    /// <param name="maxAttempts">The maximum number of retry attempts. Must be at least 1. Default is 3.</param>
+    /// <param name="delay">The delay between retry attempts. Must be greater than <see cref="TimeSpan.Zero"/>. Default is 5 seconds.</param>
+    /// <returns>The builder instance for method chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Retry behavior varies by worker type:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description><b>Periodic/Cron workers:</b> Retries occur within the current execution window before moving to next scheduled run</description></item>
+    /// <item><description><b>Continuous workers:</b> Retries continue until success or max attempts exhausted</description></item>
+    /// </list>
+    /// <para>
+    /// After all retry attempts are exhausted:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>The error handler is invoked (if configured)</description></item>
+    /// <item><description>Without an error handler, the application terminates (fail-fast)</description></item>
+    /// <item><description><b>Periodic/Cron workers:</b> Will run again on the next scheduled interval</description></item>
+    /// </list>
+    /// <para>
+    /// <b>Note:</b> Retries do not occur for <see cref="OperationCanceledException"/> (graceful shutdown) or <see cref="TimeoutException"/> (if timeout is configured).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Retry API calls up to 5 times with 10 second delay
+    /// host.RunPeriodicBackgroundWorker(TimeSpan.FromMinutes(5), async (api, token) =>
+    ///     {
+    ///         await api.SyncDataAsync(token);
+    ///     })
+    ///     .WithRetry(maxAttempts: 5, delay: TimeSpan.FromSeconds(10))
+    ///     .WithErrorHandler(ex => logger.LogError(ex, "Sync failed after all retries"));
+    /// </code>
+    /// </example>
+    IWorkerBuilder WithRetry(int maxAttempts = 3, TimeSpan? delay = null);
 }
 
 /// <summary>
@@ -96,6 +176,29 @@ internal class WorkerBuilder : IWorkerBuilder
     public IWorkerBuilder WithErrorHandler(Action<Exception> handler)
     {
         _registration.OnError = handler;
+        return this;
+    }
+
+    public IWorkerBuilder WithTimeout(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Timeout must be greater than zero.");
+
+        _registration.Timeout = timeout;
+        return this;
+    }
+
+    public IWorkerBuilder WithRetry(int maxAttempts = 3, TimeSpan? delay = null)
+    {
+        if (maxAttempts < 1)
+            throw new ArgumentOutOfRangeException(nameof(maxAttempts), maxAttempts, "Max attempts must be at least 1.");
+
+        var actualDelay = delay ?? TimeSpan.FromSeconds(5);
+        if (actualDelay <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(delay), delay, "Delay must be greater than zero.");
+
+        _registration.RetryMaxAttempts = maxAttempts;
+        _registration.RetryDelay = actualDelay;
         return this;
     }
 }
@@ -532,6 +635,27 @@ public static partial class BackgroundWorkerExtensions
         /// If null, unhandled exceptions terminate the application.
         /// </summary>
         public Action<Exception>? OnError { get; set; }
+
+        /// <summary>
+        /// Gets or sets the optional timeout for each worker execution.
+        /// Set via <see cref="IWorkerBuilder.WithTimeout"/>.
+        /// If null, no timeout is applied.
+        /// </summary>
+        public TimeSpan? Timeout { get; set; }
+
+        /// <summary>
+        /// Gets or sets the maximum number of retry attempts on failure.
+        /// Set via <see cref="IWorkerBuilder.WithRetry"/>.
+        /// If null, no automatic retries are performed.
+        /// </summary>
+        public int? RetryMaxAttempts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the delay between retry attempts.
+        /// Set via <see cref="IWorkerBuilder.WithRetry"/>.
+        /// Only used when <see cref="RetryMaxAttempts"/> is configured.
+        /// </summary>
+        public TimeSpan? RetryDelay { get; set; }
 
         /// <summary>
         /// Gets or sets the unique signature based on worker type and parameter types.

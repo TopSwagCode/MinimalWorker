@@ -18,6 +18,13 @@ public class WorkerGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Register shared code that doesn't depend on worker analysis (emitted once)
+        context.RegisterPostInitializationOutput(static ctx =>
+        {
+            ctx.AddSource("MinimalWorker.Shared.g.cs",
+                SourceText.From(WorkerEmitter.EmitSharedCode(), Encoding.UTF8));
+        });
+
         // Find all invocations of RunBackgroundWorker, RunPeriodicBackgroundWorker, and RunCronBackgroundWorker
         var workerInvocations = context.SyntaxProvider
             .CreateSyntaxProvider(
@@ -25,8 +32,8 @@ public class WorkerGenerator : IIncrementalGenerator
                 transform: static (ctx, _) => GetWorkerInvocation(ctx))
             .Where(static m => m is not null);
 
-        // Combine and generate
-        context.RegisterSourceOutput(workerInvocations.Collect(), 
+        // Combine and generate worker-specific code
+        context.RegisterSourceOutput(workerInvocations.Collect(),
             static (spc, workers) => Execute(spc, workers!));
     }
 
