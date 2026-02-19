@@ -1,0 +1,150 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MinimalWorker.Desktop.AvaloniaUI.Sample.MainWindow"
+        Title="MinimalWorker Dashboard"
+        Width="860" Height="580"
+        MinWidth="700" MinHeight="480"
+        Background="#1e1e2e"
+        FontFamily="{StaticResource InterFont}">
+
+    <DockPanel Margin="32">
+
+        <!-- Header row with title + uptime -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="MinimalWorker Dashboard"
+                           FontSize="26" FontWeight="Bold"
+                           Foreground="#cdd6f4"/>
+                <TextBlock Text="3 background workers running live"
+                           FontSize="13" Foreground="#6c7086"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+            <Border Grid.Column="1" Background="#313244" CornerRadius="10"
+                    Padding="16,10" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="UPTIME" FontSize="10" FontWeight="SemiBold"
+                               Foreground="#6c7086" HorizontalAlignment="Center"
+                               LetterSpacing="1.5"/>
+                    <TextBlock Text="{Binding Uptime}"
+                               FontSize="22" FontWeight="Bold"
+                               Foreground="#f9e2af" HorizontalAlignment="Center"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Activity bar at bottom -->
+        <Border DockPanel.Dock="Bottom" Background="#313244"
+                CornerRadius="10" Padding="18,14" Margin="0,24,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Border Background="#a6e3a1" CornerRadius="5"
+                        Width="10" Height="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding LatestActivity}"
+                           Foreground="#cdd6f4" FontSize="14"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 3 Worker cards -->
+        <Grid ColumnDefinitions="*,16,*,16,*" VerticalAlignment="Center">
+
+            <!-- Periodic Worker -->
+            <Border Grid.Column="0" Background="#313244" CornerRadius="14"
+                    Padding="24,20" BorderBrush="#45475a" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <!-- Card header -->
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="#89b4fa" CornerRadius="4"
+                                Width="8" Height="8" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Periodic.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#89b4fa"/>
+                    </StackPanel>
+                    <!-- Count -->
+                    <StackPanel>
+                        <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding Periodic.ExecutionCount}"
+                                   FontSize="38" FontWeight="Bold" Foreground="#cdd6f4"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <!-- Last run -->
+                    <StackPanel>
+                        <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding Periodic.LastRunTime}"
+                                   FontSize="16" Foreground="#89b4fa"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <!-- Status -->
+                    <TextBlock Text="{Binding Periodic.StatusMessage}"
+                               FontSize="12" Foreground="#6c7086"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Slow Task Worker -->
+            <Border Grid.Column="2" Background="#313244" CornerRadius="14"
+                    Padding="24,20" BorderBrush="#45475a" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="#cba6f7" CornerRadius="4"
+                                Width="8" Height="8" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding SlowTask.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#cba6f7"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding SlowTask.ExecutionCount}"
+                                   FontSize="38" FontWeight="Bold" Foreground="#cdd6f4"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding SlowTask.LastRunTime}"
+                                   FontSize="16" Foreground="#cba6f7"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding SlowTask.StatusMessage}"
+                               FontSize="12" Foreground="#6c7086"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Cron Worker -->
+            <Border Grid.Column="4" Background="#313244" CornerRadius="14"
+                    Padding="24,20" BorderBrush="#45475a" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="#a6e3a1" CornerRadius="4"
+                                Width="8" Height="8" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Cron.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#a6e3a1"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding Cron.ExecutionCount}"
+                                   FontSize="38" FontWeight="Bold" Foreground="#cdd6f4"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="#6c7086" LetterSpacing="1.5"/>
+                        <TextBlock Text="{Binding Cron.LastRunTime}"
+                                   FontSize="16" Foreground="#a6e3a1"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Cron.StatusMessage}"
+                               FontSize="12" Foreground="#6c7086"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+        </Grid>
+    </DockPanel>
+</Window>

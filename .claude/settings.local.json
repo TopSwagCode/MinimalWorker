@@ -6,7 +6,8 @@
       "Bash(ls:*)",
       "Bash(dotnet publish:*)",
       "Bash(dotnet clean:*)",
-      "Bash(dotnet restore:*)"
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet sln:*)"
     ]
   }
 }
