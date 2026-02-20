@@ -1,0 +1,158 @@
+<Window x:Class="MinimalWorker.Desktop.Wpf.Sample.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MinimalWorker Dashboard"
+        Width="860" Height="580"
+        MinWidth="700" MinHeight="480"
+        Background="{StaticResource BaseBg}"
+        FontFamily="Segoe UI"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel Margin="32">
+
+        <!-- Header row with title + uptime -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="MinimalWorker Dashboard"
+                           FontSize="26" FontWeight="Bold"
+                           Foreground="{StaticResource TextPrimary}"/>
+                <TextBlock Text="3 background workers running live"
+                           FontSize="13" Foreground="{StaticResource TextMuted}"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <Border Grid.Column="1" Background="{StaticResource SurfaceBg}"
+                    CornerRadius="10" Padding="16,10" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="UPTIME" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding Uptime}"
+                               FontSize="22" FontWeight="Bold"
+                               Foreground="{StaticResource AccentYellow}"
+                               HorizontalAlignment="Center"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Activity bar at bottom -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource SurfaceBg}"
+                CornerRadius="10" Padding="18,14" Margin="0,24,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Fill="{StaticResource AccentGreen}"
+                         Width="10" Height="10" VerticalAlignment="Center"
+                         Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding LatestActivity}"
+                           Foreground="{StaticResource TextPrimary}"
+                           FontSize="14" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 3 Worker cards -->
+        <Grid VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Periodic Worker -->
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBg}"
+                    CornerRadius="14" Padding="24,20"
+                    BorderBrush="{StaticResource SurfaceBorder}" BorderThickness="1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Ellipse Fill="{StaticResource AccentBlue}"
+                                 Width="8" Height="8" VerticalAlignment="Center"
+                                 Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding Periodic.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBlue}"/>
+                    </StackPanel>
+                    <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding Periodic.ExecutionCount}"
+                               FontSize="38" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimary}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding Periodic.LastRunTime}"
+                               FontSize="16" Foreground="{StaticResource AccentBlue}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="{Binding Periodic.StatusMessage}"
+                               FontSize="12" Foreground="{StaticResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Slow Task Worker -->
+            <Border Grid.Column="2" Background="{StaticResource SurfaceBg}"
+                    CornerRadius="14" Padding="24,20"
+                    BorderBrush="{StaticResource SurfaceBorder}" BorderThickness="1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Ellipse Fill="{StaticResource AccentPurple}"
+                                 Width="8" Height="8" VerticalAlignment="Center"
+                                 Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding SlowTask.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentPurple}"/>
+                    </StackPanel>
+                    <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding SlowTask.ExecutionCount}"
+                               FontSize="38" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimary}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding SlowTask.LastRunTime}"
+                               FontSize="16" Foreground="{StaticResource AccentPurple}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="{Binding SlowTask.StatusMessage}"
+                               FontSize="12" Foreground="{StaticResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Cron Worker -->
+            <Border Grid.Column="4" Background="{StaticResource SurfaceBg}"
+                    CornerRadius="14" Padding="24,20"
+                    BorderBrush="{StaticResource SurfaceBorder}" BorderThickness="1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Ellipse Fill="{StaticResource AccentGreen}"
+                                 Width="8" Height="8" VerticalAlignment="Center"
+                                 Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding Cron.Label}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentGreen}"/>
+                    </StackPanel>
+                    <TextBlock Text="EXECUTIONS" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding Cron.ExecutionCount}"
+                               FontSize="38" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimary}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="LAST RUN" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMuted}"/>
+                    <TextBlock Text="{Binding Cron.LastRunTime}"
+                               FontSize="16" Foreground="{StaticResource AccentGreen}"
+                               Margin="0,2,0,12"/>
+                    <TextBlock Text="{Binding Cron.StatusMessage}"
+                               FontSize="12" Foreground="{StaticResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>
